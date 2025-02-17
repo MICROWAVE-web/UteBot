@@ -49,9 +49,9 @@ class TradingBot:
             self.client = None
             self.serv_answ.append(False)
         except Exception as ex:
-            print(1, ex)
-            self.client = None
-            self.serv_answ.append(False)
+            raise Exception(str(ex).capitalize())
+            #self.client = None
+            #self.serv_answ.append(False)
 
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.ping_serv)
@@ -67,7 +67,7 @@ class TradingBot:
                 break
             resp = ast.literal_eval(self.client.recv_data()[1].decode())
 
-        print(1, resp)
+        # print(1, resp)
         self.serv_answ.append(resp)
 
     def open_option(self, pair_name, up_dn, sum_option, type_account, time_h, time_m, time_s, percent_par):
@@ -82,7 +82,7 @@ class TradingBot:
             self.serv_answ.append(exeptions_determniant(el))
 
         else:
-            print(self.serv_answ[-1])
+            # print(self.serv_answ[-1])
             self.serv_answ.append("Deal open")
         self.client.recv_data()
 

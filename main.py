@@ -4,7 +4,6 @@
 # Source timestamp: 1970-01-01 00:00:00 UTC (0)
 
 import json
-import logging
 import os
 import re
 import signal
@@ -22,7 +21,13 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QFileDi
     QLineEdit, QComboBox
 from flask import Flask, request, abort
 
+from loggingfile import logging
+from mm_trading import start_series
+from programm_files import init_dirs, save_money_management_data, load_money_management_data, save_auth_data, \
+    load_auth_data
 from trading import TradingBot
+
+init_dirs()
 
 API_TOKEN = '8029150425:AAEmxk26MP4ZSpsnA433znXbDs4rW0EcKJI'
 CURRENT_VERSION = '1.0.0'  # Текущая версия бота
@@ -32,8 +37,6 @@ CHAT_ID = '-1002397524864'
 bot = telebot.TeleBot(API_TOKEN)
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.DEBUG, filename='log.log', filemode='w',
-                    format='%(asctime)s %(levelname)s %(message)s')
 
 # Id для сверки
 ALLOWED_PARTNER_IDS = ["111-116", "777-13269"]
@@ -188,15 +191,14 @@ class MainWindow(QMainWindow):
         self.addButton.clicked.connect(self.addRow)
         self.saveButton.clicked.connect(self.saveData)
         self.haveUnsavedRows = False
-        self.initManageTable()
 
         # Регулярное выражение для проверки инвестиции (разрешены цифры и знак %)
         self.investment_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+%?$"))
         self.digit_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+?$"))
         self.expiration_validator = QRegularExpressionValidator(QRegularExpression(r"^(\d{2}:\d{2}:\d{2}|\d+)$"))
         self.pay_filter = QRegularExpressionValidator(QRegularExpression(r"\d+%"))
-        # Создание первой строки
-        self.addRow()
+
+        self.initManageTable()
 
         # Дата пикеры
         self.dateEdit_1.setDate(QDate.currentDate())  # Устанавливаем текущую дату
@@ -211,6 +213,20 @@ class MainWindow(QMainWindow):
 
         # Проверка версии
         self.check_version()
+
+        # Создание первой строки
+        if not load_money_management_data():
+            self.addRow()
+
+        self.selected_type_account = None
+
+        auth_data = load_auth_data()
+        if auth_data:
+            self.token_edit.setText(auth_data['token'])
+            self.userid_edit.setText(auth_data['user_id'])
+            self.urlEdit.setText(auth_data['url'])
+            self.type_account.setCurrentText(auth_data['selected_type_account'])
+            self.log_message('Данные последней успешной авторизации установлены.')
 
     def check_version(self):
         try:
@@ -249,15 +265,19 @@ class MainWindow(QMainWindow):
                     if d["partner_id"] in ALLOWED_PARTNER_IDS:
                         verified = True
             except Exception:
-                self.log_message(f'{url} don\'t connected')
                 error_text = traceback.format_exc()
                 print(error_text)
                 logging.error(error_text)
+                last_line = error_text.strip().split('\n')[-1]
+                self.log_message(f'{url} don\'t connected: {last_line}')
         return verified
 
     def ute_open(self, data):
         if self.bot.client:
-            type_account = TYPE_ACCOUNT[self.type_account.currentText()]
+            start_series(mt4_data=data, ute_bot=self.bot, window=self)
+
+            return
+            self.selected_type_account = TYPE_ACCOUNT[self.type_account.currentText()]
             deal_sum = str(self.sum_edit.value()).replace(',', '.').replace(',00', '')
             deal_time = self.timeEdit.text().split(':')
             # back_percent = self.spinBox_2.value()
@@ -269,7 +289,8 @@ class MainWindow(QMainWindow):
             if data['pair'] in pair_list['pair_list']:
                 if int(pair_list['pair_list'][data['pair']]['percent']) >= int(pay_filter):
                     self.bot.open_option(pair_name=data['pair'], up_dn=data['direct'].lower(), sum_option=deal_sum,
-                                         type_account=type_account, time_h=deal_time[0], time_m=deal_time[1],
+                                         type_account=self.selected_type_account, time_h=deal_time[0],
+                                         time_m=deal_time[1],
                                          time_s=deal_time[2], percent_par=back_percent)
                     self.log_message(self.bot.serv_answ[(-1)])
                     logging.info('Option open')
@@ -298,6 +319,16 @@ class MainWindow(QMainWindow):
                         self.connect_to_server()
                     self.is_connected = True
                     self.pushButton.setEnabled(False)
+
+                    auth_data = {
+                        "selected_type_account": self.type_account.currentText(),
+                        "token": self.token_edit.text(),
+                        "user_id": self.userid_edit.text(),
+                        "url": self.urlEdit.text()
+
+                    }
+                    save_auth_data(auth_data)
+                    self.log_message('Данные последней успешной авторизации сохранены.')
                     # self.pushButton.setText('Остановить')
 
 
@@ -321,7 +352,8 @@ class MainWindow(QMainWindow):
             self.log_message('Сервер остановлен')
 
     def log_message(self, message):
-        self.textBrowser.append(f"<{datetime.now().strftime('%H:%M')}> {message}")  # Зачем был ноль в конце?
+        self.textBrowser.append(
+            f"<p><span style='color:gray'>{datetime.now().strftime('%m-%d-%Y, %H:%M:%S')}:</span> {message}</p>")  # Зачем был ноль в конце?
 
     """def closeEvent(self, a0):
         # Проверим, есть ли активный бот
@@ -503,8 +535,6 @@ class MainWindow(QMainWindow):
                         item.setMinimumWidth(90)
                         header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
 
-
-
                     self.trades_table.setCellWidget(row, col, item)
 
                     # item = self.trades_table.item(row, col)
@@ -532,11 +562,22 @@ class MainWindow(QMainWindow):
             else:
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
 
+        data = load_money_management_data()
+
+        for key, item in data.items():
+            self.addRow(invest_val=item["investment"],
+                        expiration_val=item["expiration"],
+                        mm_type_val=item["mm_type"],
+                        filter_payment_val=item["filter_payment"],
+                        profit_val=item["take_profit"],
+                        stop_val=item["stop_loss"],
+                        result_val=item["result_type"], skip_check=True)
+
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
                mm_type_val="3 - Сразу на текущем активе",
                filter_payment_val="80%",
-               profit_val="100000", stop_val="100", result_val='WIN'):
-        if self.haveUnsavedRows:
+               profit_val="100000", stop_val="100", result_val='WIN', skip_check=False):
+        if self.haveUnsavedRows and not skip_check:
             QMessageBox.warning(self, "Ошибка",
                                 "У вас есть не сохранённые позиции. Сохраните, прежде чем добавлять новые.")
             return
@@ -737,8 +778,8 @@ class MainWindow(QMainWindow):
 
             # Дейстие
             # deleteButton = QPushButton("Удалить")
-            self.deleteButton.clicked.connect(self.deleteClicked)
-            self.deleteButton.setCursor(Qt.CursorShape.PointingHandCursor)
+            # self.deleteButton.clicked.connect(self.deleteClicked)
+            # self.deleteButton.setCursor(Qt.CursorShape.PointingHandCursor)
             # item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
             self.haveUnsavedRows = True
@@ -747,6 +788,8 @@ class MainWindow(QMainWindow):
             time.sleep(10)
 
     def saveData(self):
+        data = {}
+
         def time_to_seconds(time_str):
             """Переводит время в формате 'hh:mm:ss' в количество секунд."""
             # Разделяем строку по двоеточию
@@ -759,6 +802,7 @@ class MainWindow(QMainWindow):
         try:
             rowCount = self.manage_table.rowCount()
             for row in range(rowCount):
+                data[row] = {}
                 # Проверка инвестиции
                 investment_item = self.manage_table.cellWidget(row, 1)
                 if investment_item:
@@ -772,6 +816,7 @@ class MainWindow(QMainWindow):
                                 "%" not in value and self.investment_type == "percent"):
                             QMessageBox.warning(self, "Ошибка", f"Несовместимый тип инвестиции в строке {row + 1}")
                             return
+                    data[row]["investment"] = value
 
                 # Проверка экспирации
                 expiration_item = self.manage_table.cellWidget(row, 2)
@@ -786,6 +831,7 @@ class MainWindow(QMainWindow):
                                 QMessageBox.warning(self, "Ошибка",
                                                     f"Неверный формат или слишком короткий интервал экспирации в строке {row + 1}")
                                 raise ValueError("Неверный формат или слишком короткий интервал")
+                            data[row]["expiration"] = value
                         except ValueError:
                             traceback.print_exc()
                             return
@@ -801,6 +847,8 @@ class MainWindow(QMainWindow):
                 if mm_item and mm_item.currentText().strip()[0] not in ["1", "2", "3"]:
                     QMessageBox.warning(self, "Ошибка", f"Тип ММ должен быть 1, 2 или 3 в строке {row + 1}")
                     return
+                if mm_item:
+                    data[row]["mm_type"] = mm_item.currentText().strip()
 
                 # Проверка результата
                 if row > 0:
@@ -808,13 +856,16 @@ class MainWindow(QMainWindow):
                     if result_item and result_item.currentText().strip() not in ["WIN", "LOSS"]:
                         QMessageBox.warning(self, "Ошибка", f"Результат должен быть WIN или LOSS в строке {row + 1}")
                         return
+                data[row]["result_type"] = self.manage_table.cellWidget(row, 4).currentText().strip()
 
                 pay_filter = self.manage_table.cellWidget(row, 5)
                 if pay_filter and (
-                        "%" not in pay_filter.text() or pay_filter.text().replace("%", "").isdigit() is False):
+                        "%" not in pay_filter.text().strip() or pay_filter.text().replace("%", "").isdigit() is False):
                     QMessageBox.warning(self, "Ошибка",
                                         f"Проверьте Фильтр выплат в строке {row + 1} на корректность, например 70%")
                     return
+                if pay_filter:
+                    data[row]["filter_payment"] = pay_filter.text().strip()
 
                 # Проверка Тейк профит и Стоп лосс
                 for col in [6, 7]:
@@ -826,8 +877,12 @@ class MainWindow(QMainWindow):
                             QMessageBox.warning(self, "Ошибка",
                                                 f"Тейк профит и Стоп лосс должны быть числами в строке {row + 1}")
                             return
+                data[row]["take_profit"] = self.manage_table.cellWidget(row, 6).text().strip()
+                data[row]["stop_loss"] = self.manage_table.cellWidget(row, 7).text().strip()
+
             QMessageBox.information(self, "Успех", "Данные сохранены успешно!")
             self.haveUnsavedRows = False
+            save_money_management_data(data)
         except Exception:
             traceback.print_exc()
             time.sleep(10)
