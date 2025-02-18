@@ -4,8 +4,8 @@ import ssl
 import threading
 import time
 import traceback
-
-from websocket import create_connection, _exceptions
+import uuid
+from websocket import WebSocketApp, WebSocketConnectionClosedException
 
 
 def exeptions_determniant(err):
@@ -14,118 +14,180 @@ def exeptions_determniant(err):
         "Error 2": "The investment amount entered exceeds the maximum allowed",
         "Error 3": "The selected asset is not available",
         "Error 4": "The investment amount entered is below the minimum",
-
         "Error 01": "The amount of investment entered exceeds the trade balance",
         "Error 02": "The investment amount entered exceeds the maximum allowed",
         "Error 03": "The selected asset is not available",
         "Error 04": "The investment amount entered is below the minimum",
-
         "Error 12": "It is prohibited to use a real account",
         "Error 20": "Invalid account type or number of open options exceeded",
         "Error 21": "The asset is currently unavailable!",
         "Error 32": "Incorrect expiration time"
     }
-
     return f"{err}: {errs[err]}"
 
 
 class TradingBot:
     def __init__(self, url, userid, token):
-
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
         self.url = f"{url}/?userId={userid}&token={token}"
-
         self.serv_answ = []
-        try:
-            self.client = create_connection(self.url, sslopt={"cert_reqs": ssl.CERT_NONE})
-            self.serv_answ.append(self.client.recv_data())
-            self.serv_answ.append(self.client.recv_data())
-            for i in self.serv_answ:
-                print(i)
-            print('connect set')
-        except _exceptions.WebSocketConnectionClosedException:
-            self.client = None
-            self.serv_answ.append(False)
-        except Exception as ex:
-            raise Exception(str(ex).capitalize())
-            #self.client = None
-            #self.serv_answ.append(False)
-
+        self.ute_data = None
         self.stop_event = threading.Event()
-        self.thread = threading.Thread(target=self.ping_serv)
-        self.thread.start()
+        self.pending_requests = {}
+        self.connection_established = threading.Event()
+
+        # WebSocketApp initialization
+        self.ws = WebSocketApp(
+            self.url,
+            on_open=self.on_open,
+            on_message=self.on_message,
+            on_close=self.on_close,
+            on_error=self.on_error
+        )
+
+        # Start WebSocket in a separate thread
+        self.ws_thread = threading.Thread(target=self.ws.run_forever,
+                                          kwargs={'sslopt': {"cert_reqs": ssl.CERT_NONE}})
+        self.ws_thread.daemon = True
+        self.ws_thread.start()
+
+        # Wait for initial connection setup
+        if not self.connection_established.wait(timeout=10):
+            raise ConnectionError("Connection timeout")
+
+        # Start ping thread
+        self.ping_thread = threading.Thread(target=self.ping_serv)
+        self.ping_thread.daemon = True
+        self.ping_thread.start()
+
+    def on_open(self, ws):
+        pass
+
+    def on_message(self, ws, message):
+        try:
+            # Handle initial connection messages
+            if not self.connection_established.is_set():
+                self.serv_answ.append(message)
+                if len(self.serv_answ) >= 2:
+                    self.connection_established.set()
+
+            # Check pending requests
+            for req_id, (event, condition) in list(self.pending_requests.items()):
+                if condition(message):
+                    event.set()
+                    del self.pending_requests[req_id]
+                    break
+
+            # Update balance data
+            try:
+                data = json.loads(message)
+                if "i_balance" in data:
+                    self.ute_data = data
+            except json.JSONDecodeError:
+                pass
+
+        except Exception as e:
+            traceback.print_exc()
+
+    def on_close(self, ws, close_status_code, close_msg):
+        self.stop_event.set()
+
+    def on_error(self, ws, error):
+        self.connection_established.set()
+        self.stop_event.set()
+        traceback.print_exc()
+
+    def _send_request(self, message, condition):
+        req_id = str(uuid.uuid4())
+        event = threading.Event()
+        self.pending_requests[req_id] = (event, condition)
+
+        try:
+            self.ws.send(message)
+        except WebSocketConnectionClosedException:
+            self.reconnect()
+            self.ws.send(message)
+
+        if not event.wait(timeout=10):
+            del self.pending_requests[req_id]
+            raise TimeoutError("Request timed out")
+        return event.response
+
+    def reconnect(self):
+        self.ws.close()
+        self.ws = WebSocketApp(
+            self.url,
+            on_open=self.on_open,
+            on_message=self.on_message,
+            on_close=self.on_close,
+            on_error=self.on_error
+        )
+        self.ws_thread = threading.Thread(target=self.ws.run_forever,
+                                          kwargs={'sslopt': {"cert_reqs": ssl.CERT_NONE}})
+        self.ws_thread.start()
+        self.connection_established.clear()
+        if not self.connection_established.wait(timeout=10):
+            raise ConnectionError("Reconnection failed")
 
     def get_only_pair_list(self):
-        self.client.send("only_pair_list")
+        def pair_list_condition(msg):
+            return "pair_list" in msg
 
-        resp = ast.literal_eval(self.client.recv_data()[1].decode())
+        self._send_request("only_pair_list", pair_list_condition)
 
-        while True:
-            if type(resp) != int and "pair_list" in resp:
-                break
-            resp = ast.literal_eval(self.client.recv_data()[1].decode())
+        # Process responses
+        pair_list = None
+        start_time = time.time()
+        while time.time() - start_time < 10:
+            for msg in self.serv_answ:
+                if "pair_list" in msg:
+                    pair_list = ast.literal_eval(msg)
+                    self.serv_answ.append(pair_list)
+                    return pair_list
+            time.sleep(0.1)
+        raise TimeoutError("Failed to get pair list")
 
-        # print(1, resp)
-        self.serv_answ.append(resp)
-
-    def open_option(self, pair_name, up_dn, sum_option, type_account, time_h, time_m, time_s, percent_par):
+    def open_option(self, pair_name, up_dn, sum_option, type_account,
+                    time_h, time_m, time_s, percent_par):
         w_type_exp = "2"
-        self.client.send(
-            f"option_send:{pair_name}:{up_dn}:lifetime:{type_account}:{sum_option}:{percent_par}:{w_type_exp}:{time_h}:{time_m}:{time_s}:0:ute_bot")
+        message = (
+            f"option_send:{pair_name}:{up_dn}:lifetime:{type_account}:"
+            f"{sum_option}:{percent_par}:{w_type_exp}:{time_h}:"
+            f"{time_m}:{time_s}:0:ute_bot"
+        )
 
-        self.serv_answ.append(self.client.recv_data())
-        if 'Error' in self.serv_answ[-1][1].decode():
-            el = ast.literal_eval(self.serv_answ[-1][1].decode())
-            el = list(el.keys())[0]
-            self.serv_answ.append(exeptions_determniant(el))
+        def response_condition(msg):
+            return 'Error' in msg or 'i_balance' in msg
 
+        response = self._send_request(message, response_condition)
+
+        if 'Error' in response:
+            error_key = list(ast.literal_eval(response).keys())[0]
+            error_msg = exeptions_determniant(error_key)
+            self.serv_answ.append(error_msg)
+            print(error_msg)
         else:
-            # print(self.serv_answ[-1])
-            self.serv_answ.append("Deal open")
-        self.client.recv_data()
+            try:
+                self.ute_data = json.loads(response)
+                self.serv_answ.append("Deal open")
+                print("Deal opened successfully")
+            except json.JSONDecodeError:
+                self.serv_answ.append("Unknown response format")
 
     def ping_serv(self):
-        if self.client:
-            while not self.stop_event.is_set():
-                if self.client:
-                    self.client.send("ping_us")
-                    print(self.client.recv_data())
-                else:
-                    break
+        while not self.stop_event.is_set():
+            try:
+                self.ws.send("ping_us")
+            except Exception as e:
                 if not self.stop_event.is_set():
-                    time.sleep(30)
-                else:
-                    break
+                    self.reconnect()
+            time.sleep(30)
 
     def close_connection(self):
-        self.client.close()
-        self.client = None
-        self.stop_event.set()  # Выставляем флаг остановки
+        self.stop_event.set()
+        self.ws.close()
+        self.ping_thread.join()
+        self.ws_thread.join()
 
 
 if __name__ == '__main__':
-    # Тестирование запросом на разрешение подключения
-    url = 'wss://2ute.ru:100'
-    token = 'c1c61ddacfdc253c7f3f43e1a093977d1de19a79'
-    user_id = '14735'
-
-    ALLOWED_PARTNER_IDS = ["111-116", "777-13269"]
-    verified = False
-    try:
-        bot = TradingBot(url=url, token=token, userid=user_id)
-        for answer_object in bot.serv_answ:
-            answer_text = answer_object[1].decode()
-            if "partner_id" not in answer_text:
-                continue
-            d = json.loads(answer_text)
-            if d["partner_id"] in ALLOWED_PARTNER_IDS:
-                verified = True
-                break
-
-    except Exception as ex:
-        traceback.print_exc()
-        # return False
-
-    print(52, verified)
+    pass

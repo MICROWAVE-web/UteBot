@@ -274,7 +274,10 @@ class MainWindow(QMainWindow):
 
     def ute_open(self, data):
         if self.bot.client:
-            start_series(mt4_data=data, ute_bot=self.bot, window=self)
+            try:
+                start_series(mt4_data=data, ute_bot=self.bot, window=self)
+            except Exception:
+                traceback.print_exc()
 
             return
             self.selected_type_account = TYPE_ACCOUNT[self.type_account.currentText()]
@@ -354,25 +357,6 @@ class MainWindow(QMainWindow):
     def log_message(self, message):
         self.textBrowser.append(
             f"<p><span style='color:gray'>{datetime.now().strftime('%m-%d-%Y, %H:%M:%S')}:</span> {message}</p>")  # Зачем был ноль в конце?
-
-    """def closeEvent(self, a0):
-        # Проверим, есть ли активный бот
-        if self.bot:
-            if self.bot.thread.is_alive():
-                # Завершаем поток
-                self.bot.thread.terminate()
-                self.bot.thread.join(timeout=1)  # Ждем не более 2 секунд для завершения
-
-            self.bot.close_connection()
-
-        # Если Flask сервер все еще работает, принудительно завершаем его поток
-        if flask_thread.isRunning():
-            flask_thread.terminate()
-
-        # Завершаем все дополнительные процессы (если есть)
-        # self.save_data()  # если нужно сохранять данные перед закрытием
-
-        a0.accept()  # Разрешаем закрытие окна"""
 
     # В методе closeEvent
     def closeEvent(self, a0):
@@ -827,7 +811,8 @@ class MainWindow(QMainWindow):
                             exp_time = QTime.fromString(value, "hh:mm:ss")
                             # Текущее время
                             seconds = time_to_seconds(value)
-                            if not exp_time.isValid() or seconds < 60:
+                            print(seconds)
+                            if not exp_time.isValid() or 86100 > seconds < 60:
                                 QMessageBox.warning(self, "Ошибка",
                                                     f"Неверный формат или слишком короткий интервал экспирации в строке {row + 1}")
                                 raise ValueError("Неверный формат или слишком короткий интервал")

@@ -19,24 +19,29 @@ class OptionSeries():
         self.deal_series = []
         for key, item in mm_data.items():
             self.deal_series.append(item)
-        print(self.deal_series)
-        self.start_series()
+
+        # Вывод списка ММ таблицы
+        logging.debug(f"{self.deal_series}")
+
+        if self.deal_series:
+            self.start_series()
 
     def start_series(self):
         deal = self.deal_series[0]
-
+        deal_time = deal["expiration"].split(':')
         self.ute_bot.get_only_pair_list()
         pair_list = self.ute_bot.serv_answ[(-1)]
         self.window.log_message(f"Открытие опциона - {self.mt4_pair}:{self.mt4_direct}...")
         if self.mt4_pair in pair_list['pair_list']:
             if int(pair_list['pair_list'][self.mt4_pair]['percent']) >= int(deal["filter_payment"].replace("%", "")):
-                self.bot.open_option(pair_name=self.mt4_pair, up_dn=self.mt4_direct.lower(),
-                                     sum_option=deal["investment"],
-                                     type_account=self.account_type, time_h=deal_time[0],
-                                     time_m=deal_time[1],
-                                     time_s=deal_time[2], percent_par=0)
-                self.window.log_message(self.bot.serv_answ[(-1)])
-                logging.info('Option open')
+                if len(deal_time) == 3:
+                    self.ute_bot.open_option(pair_name=self.mt4_pair, up_dn=self.mt4_direct.lower(),
+                                             sum_option=deal["investment"],
+                                             type_account=self.account_type, time_h=deal_time[0],
+                                             time_m=deal_time[1],
+                                             time_s=deal_time[2], percent_par=0)
+                    self.window.log_message(self.ute_bot.serv_answ[(-1)])
+                    logging.info('Option open')
             else:  # inserted
                 self.window.log_message('Less than pay filter')
                 logging.info('Less than pay filter')
