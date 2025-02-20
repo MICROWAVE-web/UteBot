@@ -55,7 +55,7 @@ class TradingBot:
         self.ws_thread.start()
 
         # Wait for initial connection setup
-        if not self.connection_established.wait(timeout=15):
+        if not self.connection_established.wait(timeout=4):
             raise ConnectionError("Connection timeout")
 
         # Start ping thread
@@ -64,7 +64,12 @@ class TradingBot:
         self.ping_thread.start()
 
         self.active_options = {}
+        self._last_opened_option_id = None
         self.have_active_options = False
+
+        # Последний опцион для коллбека в mm_trading.py
+        self._last_finished_option = None
+        self._observers = []
 
     def on_open(self, ws):
         self.is_connected = True
@@ -93,18 +98,28 @@ class TradingBot:
                 if "i_balance" in data:
                     self.ute_data = data
                 if "api_massive_option" in data:
-                    if data["api_massive_option"][0]["option_id"] not in self.active_options:
-                        self.active_options[data["api_massive_option"][0]["option_id"]] = data["api_massive_option"][0]
+                    option_key = str(data["api_massive_option"][0]["option_id"])
+                    if option_key not in self.active_options:
+                        self.active_options[option_key] = data["api_massive_option"][0]
                         self.have_active_options = True
+                        self.last_opened_option_id = option_key
+                    print(self.active_options)
 
                 if "finish_option" in data:
                     try:
-                        if data["api_massive_option"][0]["option_id"] in self.active_options.keys():
-                            self.active_options.pop(data["api_massive_option"][0]["option_id"])
-                        if len(self.active_options.keys()) == 0:
-                            self.have_active_options = False
+                        logging.debug(f"OPTION FINISHED: {data}")
+                        option_key = str(data["info_finish_option"][0]["option_id"])
+                        if option_key in self.active_options.keys():
+                            print(self.active_options)
+                            self.active_options.pop(option_key)
+                            if len(self.active_options.keys()) == 0:
+                                self.have_active_options = False
+                            self.last_finished_option = data["info_finish_option"][0]
+                            print(self.active_options)
+                            print(self.last_finished_option)
+
                     except KeyError:
-                        print(data)
+                        traceback.print_exc()
 
             except json.JSONDecodeError:
                 pass
@@ -133,7 +148,7 @@ class TradingBot:
             self.reconnect()
             self.ws.send(message)
 
-        if not event.wait(timeout=10):
+        if not event.wait(timeout=4):
             del self.pending_requests[req_id]
             raise TimeoutError("Request timed out")
 
@@ -226,6 +241,42 @@ class TradingBot:
             return self.ute_data.get("m_rub")
         return None
 
+    def add_observer(self, observer):
+        self._observers.append(observer)
+        print(self._observers)
+
+    def notify_observers(self, type_notify=""):
+        print("Возвращаем результаты")
+        print(self._observers)
+        for observer in self._observers:
+            if type_notify == "finish":
+                observer.option_finished(self._last_finished_option)
+            elif type_notify == "open":
+                observer.last_opened_option_id = self._last_opened_option_id
+
+    @property
+    def last_finished_option(self):
+        return self._last_finished_option
+
+    @last_finished_option.setter
+    def last_finished_option(self, new_value):
+        self._last_finished_option = new_value
+        self.notify_observers(type_notify="finish")
+
+    @property
+    def last_opened_option_id(self):
+        return self._last_opened_option_id
+
+    @last_opened_option_id.setter
+    def last_opened_option_id(self, new_value):
+        self._last_opened_option_id = new_value
+        self.notify_observers(type_notify="open")
+
 
 if __name__ == '__main__':
-    pass
+    url = "wss://2ute.ru:100"
+    token = "8f21b220ff1d338ac7d5f38849b43a669bd22030"
+    user_id = "14669"
+    bot = TradingBot(url=url, token=token, userid=user_id)
+    print(bot.get_only_pair_list())
+    print(bot.get_only_pair_list())

@@ -23,10 +23,9 @@ from flask import Flask, request, abort
 
 from loggingfile import logging
 from mm_trading import OptionSeries
-from mm_types import MM_MODES, TYPE_ACCOUNT
+from mm_types import MM_MODES
 from programm_files import save_money_management_data, load_money_management_data, save_auth_data, \
     load_auth_data
-from trading import TradingBot
 
 API_TOKEN = '8029150425:AAEmxk26MP4ZSpsnA433znXbDs4rW0EcKJI'
 CURRENT_VERSION = '1.0.0'  # Текущая версия бота
@@ -40,6 +39,7 @@ app = Flask(__name__)
 # Id для сверки
 ALLOWED_PARTNER_IDS = ["111-116", "777-13269"]
 
+sys.setrecursionlimit(2000)
 
 
 # Синхронная проверка версии
@@ -176,15 +176,20 @@ class MainWindow(QMainWindow):
         self.is_connected = False
         self.last_recv = None
 
+        # Режим ММ
+        self.selected_mm_mode = 0
+
         # Статистика
         self.load_json_button.clicked.connect(self.load_statistics_from_json)  # Привязываем кнопку
 
         # Менеджмент
         # Подключаем кнопки к функциям
         self.investment_type = None  # Тип инвестиций (None, "number", "percent")
+
         self.addButton.clicked.connect(self.addRow)
         self.saveButton.clicked.connect(self.saveData)
         self.haveUnsavedRows = False
+        self.allowToRunBot = False
 
         # Регулярное выражение для проверки инвестиции (разрешены цифры и знак %)
         self.investment_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+(\.\d{1})?$"))
@@ -214,19 +219,13 @@ class MainWindow(QMainWindow):
 
         self.selected_type_account = None
 
-        # Режим ММ
-        self.selected_mm_mode = 0
-
         auth_data = load_auth_data()
         if auth_data:
             self.token_edit.setText(auth_data['token'])
             self.userid_edit.setText(auth_data['user_id'])
             self.urlEdit.setText(auth_data['url'])
             self.type_account.setCurrentText(auth_data['selected_type_account'])
-            self.log_message('Данные последней успешной авторизации установлены.')
-
-        self.mm_trade_bot = None
-        # ps Инициализируем этот объект после соединения с биржей
+            # self.log_message('Данные последней успешной авторизации установлены.')
 
         # Сохранение таблицы, без уведомления, если успешно
         self.saveData(nide_notification=True)
@@ -256,11 +255,15 @@ class MainWindow(QMainWindow):
         if self.bot is None:
             # Добавлен метод проверки партнерского ID
             try:
-                self.bot = TradingBot(url=url, token=token, userid=user_id)
+                self.bot = OptionSeries(url=url, token=token, userid=user_id, auth_data=load_auth_data(), window=self)
                 for answer_text in self.bot.serv_answ:
                     if answer_text is False:
                         continue
-                    self.log_message(answer_text)
+
+                    if "Connection successful" in str(answer_text):
+                        self.log_message("Соединение установлено")
+                    else:
+                        self.log_message(answer_text)
                     if "partner_id" not in answer_text:
                         continue
                     d = json.loads(answer_text)
@@ -270,7 +273,7 @@ class MainWindow(QMainWindow):
                 error_text = traceback.format_exc()
                 logging.error(error_text)
                 last_line = error_text.strip().split('\n')[-1]
-                self.log_message(f'{url} don\'t connected: {last_line}')
+                self.log_message(f'{url} нет соединения: {last_line}')
         return verified
 
     def ute_open(self, data):
@@ -285,8 +288,8 @@ class MainWindow(QMainWindow):
         if self.bot.is_connected is True:
             try:
                 logging.debug(data)
-                if self.mm_trade_bot is not None:
-                    self.mm_trade_bot.mt4_signal(mt4_data=data)
+                if self.bot is not None:
+                    self.bot.mt4_signal(mt4_data=data)
             except Exception:
                 traceback.print_exc()
         else:
@@ -299,6 +302,10 @@ class MainWindow(QMainWindow):
         # self.log_message('Server is running on http://127.0.0.1:80')
 
     def start_client_thread(self):
+        if self.allowToRunBot is False:
+            QMessageBox.warning(self, "Внимание", "Перед запуском, примените настройки.")
+            return
+
         if self.is_connected is False:
             if self.check_field_complete():
                 logging.info('Fields complete')
@@ -319,10 +326,7 @@ class MainWindow(QMainWindow):
 
                     }
                     save_auth_data(auth_data)
-                    self.log_message('Данные последней успешной авторизации сохранены.')
-                    self.mm_trade_bot = OptionSeries(auth_data=load_auth_data(),
-                                                     ute_bot=self.bot, window=self)
-                    # self.pushButton.setText('Остановить')
+                    # self.log_message('Данные последней успешной авторизации сохранены.')
 
 
                 else:
@@ -590,7 +594,7 @@ class MainWindow(QMainWindow):
             # поле результат
             combo = QComboBox()
             combo.setCurrentText(result_val)
-            if rowCount > 0:
+            if rowCount > 0 and self.selected_mm_mode != 4:
                 combo.addItems(["WIN", "LOSS"])
                 combo.setStyleSheet("""
                 QComboBox {
@@ -622,7 +626,7 @@ class MainWindow(QMainWindow):
                 }
                 """)
             else:
-                combo.addItems(["-"])
+                combo.addItems(["WIN", "LOSS"])
                 combo.setDisabled(True)
                 combo.setStyleSheet("""
                 QComboBox {
@@ -849,7 +853,6 @@ class MainWindow(QMainWindow):
                             break
                     self.update_mm_table(mm_text)
 
-
                 # Проверка результата
                 if row > 0:
                     result_item = self.manage_table.cellWidget(row, 4)
@@ -882,6 +885,7 @@ class MainWindow(QMainWindow):
 
             if not nide_notification:
                 QMessageBox.information(self, "Успех", "Данные сохранены успешно!")
+                self.allowToRunBot = True
             self.haveUnsavedRows = False
             save_money_management_data(data)
         except Exception:
