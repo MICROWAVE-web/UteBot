@@ -1,6 +1,8 @@
 # Добавляем поток вывода в файл
 import logging
-from programm_files import log_dir
+from programm_files import log_dir, init_dirs
+
+init_dirs()
 
 file_log = logging.FileHandler(fr'{log_dir}\log.log')
 

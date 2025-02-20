@@ -22,12 +22,11 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QFileDi
 from flask import Flask, request, abort
 
 from loggingfile import logging
-from mm_trading import start_series
-from programm_files import init_dirs, save_money_management_data, load_money_management_data, save_auth_data, \
+from mm_trading import OptionSeries
+from mm_types import MM_MODES, TYPE_ACCOUNT
+from programm_files import save_money_management_data, load_money_management_data, save_auth_data, \
     load_auth_data
 from trading import TradingBot
-
-init_dirs()
 
 API_TOKEN = '8029150425:AAEmxk26MP4ZSpsnA433znXbDs4rW0EcKJI'
 CURRENT_VERSION = '1.0.0'  # Текущая версия бота
@@ -41,11 +40,6 @@ app = Flask(__name__)
 # Id для сверки
 ALLOWED_PARTNER_IDS = ["111-116", "777-13269"]
 
-TYPE_ACCOUNT = {
-    'Демо счёт': 'demo',
-    'Реальный долларовый': 'real_dollar',
-    'Реальный рублёвый': 'real_rub',
-}
 
 
 # Синхронная проверка версии
@@ -65,7 +59,7 @@ class TelegramBotThread(QThread):
     def check_version(self):
         try:
             pinned_message = self.get_last_pinned_message()
-            print("pm", pinned_message)
+            logging.debug(f"Pinned message: {pinned_message}")
             if not pinned_message:
                 self.version_check_result.emit(
                     {"status": False, "message": "Не удалось проверить актуальность версии."})
@@ -77,7 +71,7 @@ class TelegramBotThread(QThread):
 
             if match:
                 pinned_version = match.group(1)
-                print(pinned_version, CURRENT_VERSION)
+                logging.debug(f"{pinned_version=} {CURRENT_VERSION=}")
                 if pinned_version > CURRENT_VERSION:
                     self.version_check_result.emit(
                         {"status": False,
@@ -193,7 +187,7 @@ class MainWindow(QMainWindow):
         self.haveUnsavedRows = False
 
         # Регулярное выражение для проверки инвестиции (разрешены цифры и знак %)
-        self.investment_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+%?$"))
+        self.investment_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+(\.\d{1})?$"))
         self.digit_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+?$"))
         self.expiration_validator = QRegularExpressionValidator(QRegularExpression(r"^(\d{2}:\d{2}:\d{2}|\d+)$"))
         self.pay_filter = QRegularExpressionValidator(QRegularExpression(r"\d+%"))
@@ -220,6 +214,9 @@ class MainWindow(QMainWindow):
 
         self.selected_type_account = None
 
+        # Режим ММ
+        self.selected_mm_mode = 0
+
         auth_data = load_auth_data()
         if auth_data:
             self.token_edit.setText(auth_data['token'])
@@ -227,6 +224,12 @@ class MainWindow(QMainWindow):
             self.urlEdit.setText(auth_data['url'])
             self.type_account.setCurrentText(auth_data['selected_type_account'])
             self.log_message('Данные последней успешной авторизации установлены.')
+
+        self.mm_trade_bot = None
+        # ps Инициализируем этот объект после соединения с биржей
+
+        # Сохранение таблицы, без уведомления, если успешно
+        self.saveData(nide_notification=True)
 
     def check_version(self):
         try:
@@ -254,10 +257,9 @@ class MainWindow(QMainWindow):
             # Добавлен метод проверки партнерского ID
             try:
                 self.bot = TradingBot(url=url, token=token, userid=user_id)
-                for answer_object in self.bot.serv_answ:
-                    if answer_object is False:
+                for answer_text in self.bot.serv_answ:
+                    if answer_text is False:
                         continue
-                    answer_text = answer_object[1].decode()
                     self.log_message(answer_text)
                     if "partner_id" not in answer_text:
                         continue
@@ -266,49 +268,35 @@ class MainWindow(QMainWindow):
                         verified = True
             except Exception:
                 error_text = traceback.format_exc()
-                print(error_text)
                 logging.error(error_text)
                 last_line = error_text.strip().split('\n')[-1]
                 self.log_message(f'{url} don\'t connected: {last_line}')
         return verified
 
     def ute_open(self, data):
-        if self.bot.client:
+        logging.debug(data)
+        match = re.search(r'[A-Za-z]{6}', data["pair"])
+        cleaned_pair = match.group(0) if match else None
+        if cleaned_pair is None:
+            logging.error(f"Пара {data['pair']} не поддерживается!")
+            return
+        data["pair"] = cleaned_pair
+        data["direct"] = data["direct"].replace("/", "")
+        if self.bot.is_connected is True:
             try:
-                start_series(mt4_data=data, ute_bot=self.bot, window=self)
+                logging.debug(data)
+                if self.mm_trade_bot is not None:
+                    self.mm_trade_bot.mt4_signal(mt4_data=data)
             except Exception:
                 traceback.print_exc()
-
-            return
-            self.selected_type_account = TYPE_ACCOUNT[self.type_account.currentText()]
-            deal_sum = str(self.sum_edit.value()).replace(',', '.').replace(',00', '')
-            deal_time = self.timeEdit.text().split(':')
-            # back_percent = self.spinBox_2.value()
-            back_percent = 0
-            self.bot.get_only_pair_list()
-            pair_list = self.bot.serv_answ[(-1)]
-            pay_filter = self.spinBox.value()
-            self.log_message(f"Открытие опциона - {data['pair']}:{data['direct']}")
-            if data['pair'] in pair_list['pair_list']:
-                if int(pair_list['pair_list'][data['pair']]['percent']) >= int(pay_filter):
-                    self.bot.open_option(pair_name=data['pair'], up_dn=data['direct'].lower(), sum_option=deal_sum,
-                                         type_account=self.selected_type_account, time_h=deal_time[0],
-                                         time_m=deal_time[1],
-                                         time_s=deal_time[2], percent_par=back_percent)
-                    self.log_message(self.bot.serv_answ[(-1)])
-                    logging.info('Option open')
-                else:  # inserted
-                    self.log_message('Less than pay filter')
-                    logging.info('Less than pay filter')
-            else:  # inserted
-                self.log_message(f"{data['pair']} not exist")
-                logging.warning(f"{data['pair']} not exist")
+        else:
+            logging.error("Client not connected!")
 
     def connect_to_server(self):
         flask_thread.data_received.connect(self.ute_open)
         flask_thread.start()
         logging.info('Flask server running')
-        self.log_message('Server is running on http://127.0.0.1:80')
+        # self.log_message('Server is running on http://127.0.0.1:80')
 
     def start_client_thread(self):
         if self.is_connected is False:
@@ -332,21 +320,21 @@ class MainWindow(QMainWindow):
                     }
                     save_auth_data(auth_data)
                     self.log_message('Данные последней успешной авторизации сохранены.')
+                    self.mm_trade_bot = OptionSeries(auth_data=load_auth_data(),
+                                                     ute_bot=self.bot, window=self)
                     # self.pushButton.setText('Остановить')
 
 
-                else:  # inserted
-                    # QMessageBox.warning(self, 'Отказано ', 'Вы не имеете доступ')
+                else:
                     logging.warning('Отказано. Вы не имеете доступ!')
                     self.log_message('Отказано. Вы не имеете доступ!')
-            else:  # inserted
+            else:
                 logging.warning('Field (USerId or Token or url) don\'t complete4')
                 self.log_message('Отказано. Заполните поля UserId и Token и url!')
-                # QMessageBox.critical(self, 'Ошибка ', 'Заполните поля UserId и Token и url')
         else:  # inserted
             self.log_message('Остановка сервера...')
             logging.info('CLOSING server')
-            if self.bot and self.bot.client:
+            if self.bot:
                 self.bot.close_connection()
             self.bot = None
             self.pushButton.setText('Запустить')
@@ -382,7 +370,7 @@ class MainWindow(QMainWindow):
 
     def on_date_changed(self, date):
         """ Обработчик изменения даты """
-        print(f"Выбранная дата: {date.toString('dd.MM.yyyy')}")  # Вывод в консоль
+        logging.debug(f"Выбранная дата: {date.toString('dd.MM.yyyy')}")  # Вывод в консоль
 
     def check_field_complete(self) -> object:
         token = self.token_edit.text()
@@ -549,13 +537,16 @@ class MainWindow(QMainWindow):
         data = load_money_management_data()
 
         for key, item in data.items():
-            self.addRow(invest_val=item["investment"],
-                        expiration_val=item["expiration"],
-                        mm_type_val=item["mm_type"],
-                        filter_payment_val=item["filter_payment"],
-                        profit_val=item["take_profit"],
-                        stop_val=item["stop_loss"],
-                        result_val=item["result_type"], skip_check=True)
+            try:
+                self.addRow(invest_val=item["investment"],
+                            expiration_val=item["expiration"],
+                            mm_type_val=item["mm_type"],
+                            filter_payment_val=item["filter_payment"],
+                            profit_val=item["take_profit"],
+                            stop_val=item["stop_loss"],
+                            result_val=item["result_type"], skip_check=True)
+            except Exception as e:
+                traceback.print_exc()
 
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
                mm_type_val="3 - Сразу на текущем активе",
@@ -665,9 +656,7 @@ class MainWindow(QMainWindow):
             combo_mm = QComboBox()
             combo_mm.setMinimumWidth(275)
             if rowCount > 0:
-                combo_mm.addItems(["1 - На следующий сигнал текущего актива",
-                                   "2 - На следующий сигнал любого актива",
-                                   "3 - Сразу на текущем активе"])
+                combo_mm.addItems([item for _, item in MM_MODES.items()])
                 combo_mm.setStyleSheet("""
                 QComboBox {
                     background-color: #121a3d;border-radius: 0px;
@@ -698,9 +687,7 @@ class MainWindow(QMainWindow):
                 }
                 """)
             else:
-                combo_mm.addItems(["1 - На следующий сигнал текущего актива",
-                                   "2 - На следующий сигнал любого актива",
-                                   "3 - Сразу на текущем активе"])
+                combo_mm.addItems([item for _, item in MM_MODES.items()])
                 combo_mm.setDisabled(True)
                 combo_mm.setStyleSheet("""
                 QComboBox {
@@ -730,6 +717,9 @@ class MainWindow(QMainWindow):
                 """)
             combo_mm.setCurrentText(mm_type_val)
             self.manage_table.setCellWidget(rowCount, 3, combo_mm)
+
+            # Подключаем сигнал изменения ячейки к слоту
+            combo_mm.currentTextChanged.connect(self.update_mm_table)
 
             # Установка пустых значений
             for i in range(1, 8):
@@ -766,12 +756,21 @@ class MainWindow(QMainWindow):
             # self.deleteButton.setCursor(Qt.CursorShape.PointingHandCursor)
             # item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-            self.haveUnsavedRows = True
+            if not skip_check:
+                self.haveUnsavedRows = True
         except Exception:
             traceback.print_exc()
             time.sleep(10)
 
-    def saveData(self):
+    """def set_mm_type(self, data):
+        for n, m_name in MM_MODES.items():
+            if m_name == data["0"]["mm_type"]:
+                self.window.selected_mm_mode = n
+                break
+        print(self.window.selected_mm_mode)
+        """
+
+    def saveData(self, nide_notification=False):
         data = {}
 
         def time_to_seconds(time_str):
@@ -811,29 +810,45 @@ class MainWindow(QMainWindow):
                             exp_time = QTime.fromString(value, "hh:mm:ss")
                             # Текущее время
                             seconds = time_to_seconds(value)
-                            print(seconds)
-                            if not exp_time.isValid() or 86100 > seconds < 60:
+                            # logging.debug(seconds)
+
+                            if not (exp_time.isValid() and 86100 >= seconds >= 60):
                                 QMessageBox.warning(self, "Ошибка",
-                                                    f"Неверный формат или слишком короткий интервал экспирации в строке {row + 1}")
+                                                    f"Неверный формат или слишком короткий интервал экспирации в "
+                                                    f"строке {row + 1}")
                                 raise ValueError("Неверный формат или слишком короткий интервал")
                             data[row]["expiration"] = value
                         except ValueError:
                             traceback.print_exc()
                             return
-                    elif value.isdigit():
-                        pass
-                    elif not value.isdigit():  # Должно быть числом
+                    elif value.isdigit():  # В минутах
+                        if not (60 % int(value) == 0 and 2 <= int(value) <= 60):
+                            QMessageBox.warning(self, "Ошибка",
+                                                f"Экспирация в формате числа должна быть кратна 60 и находитсья в "
+                                                f"диапазоне от 2 до 60. Строка {row + 1}")
+                            return
+                        data[row]["expiration"] = value
+                    else:  # Должно быть числом
                         QMessageBox.warning(self, "Ошибка",
                                             f"Экспирация должна быть числом или временем в строке {row + 1}")
                         return
 
                 # Проверка типа ММ
                 mm_item = self.manage_table.cellWidget(row, 3)
-                if mm_item and mm_item.currentText().strip()[0] not in ["1", "2", "3"]:
-                    QMessageBox.warning(self, "Ошибка", f"Тип ММ должен быть 1, 2 или 3 в строке {row + 1}")
+                if mm_item and mm_item.currentText().strip() not in MM_MODES.values():
+                    QMessageBox.warning(self, "Ошибка", f"Некорректный тип ММ в строке {row + 1}")
                     return
                 if mm_item:
-                    data[row]["mm_type"] = mm_item.currentText().strip()
+                    mm_text = mm_item.currentText().strip()
+                    data[row]["mm_type"] = mm_text
+
+                    # Сохраняем выбранный тип ММ
+                    for n, m_name in MM_MODES.items():
+                        if m_name == mm_text:
+                            self.selected_mm_mode = n
+                            break
+                    self.update_mm_table(mm_text)
+
 
                 # Проверка результата
                 if row > 0:
@@ -865,7 +880,8 @@ class MainWindow(QMainWindow):
                 data[row]["take_profit"] = self.manage_table.cellWidget(row, 6).text().strip()
                 data[row]["stop_loss"] = self.manage_table.cellWidget(row, 7).text().strip()
 
-            QMessageBox.information(self, "Успех", "Данные сохранены успешно!")
+            if not nide_notification:
+                QMessageBox.information(self, "Успех", "Данные сохранены успешно!")
             self.haveUnsavedRows = False
             save_money_management_data(data)
         except Exception:
@@ -884,22 +900,90 @@ class MainWindow(QMainWindow):
         # Сохраняем данные после изменения
         self.saveData()
 
+    def update_mm_table(self, text):
+        # Когда значение в одном из комбобоксов изменится, обновляем все строки в этом столбце
+        for row in range(self.manage_table.rowCount()):
+            combo = self.manage_table.cellWidget(row, 3)  # Получаем QComboBox из ячейки
+            combo.setCurrentText(text)  # Устанавливаем тот же текст во всех строках
 
-"""def main():
-    app_qt = QApplication(sys.argv)
-    main_app = MainWindow()
-    main_app.show()
-    logging.info('APP started')
-    sys.exit(app_qt.exec())
-    os.kill(os.getpid(), signal.SIGINT)"""
+            # При режиме 4, отключаем поле Результат
+
+            for row in range(1, self.manage_table.rowCount()):
+                if text == MM_MODES[4]:
+                    combo_result = self.manage_table.cellWidget(row, 4)  # Получаем QComboBox из ячейки
+                    combo_result.setDisabled(True)
+                    combo_result.setStyleSheet("""
+                    QComboBox {
+                        background-color: #192142;border-radius: 0px; color: #8996c7;
+                    }
+                    QComboBox::drop-down{
+                        image: url(icons/arrow.ico);
+                        width:12px;
+                        margin-right: 8px;
+                    }
+                    QComboBox QListView {
+                        background-color: rgb(18, 26, 61);
+                        outline: 0px;
+                        padding: 2px;
+                        border-radius: 5px;
+                        border: none;
+                    }
+                    QComboBox QListView:item {
+                    padding: 5px;
+                    border-radius: 3px;
+                    border-left: 2px solid rgb(18, 26, 61);
+                    }
+                    QComboBox QListView:item:hover {
+                    background: rgb(26,38,85);
+                    border-left: 2px solid rgb(33,62,118);
+                    }
+                    """)
+                    # self.manage_table.setCellWidget(row, 4, combo_result)
+                else:
+                    combo_result = self.manage_table.cellWidget(row, 4)  # Получаем QComboBox из ячейки
+                    combo_result.setDisabled(False)
+                    combo_result.setStyleSheet("""
+                    QComboBox {
+                        background-color: #121a3d;border-radius: 0px;
+                    }
+                    QComboBox:on {
+                        background-color: rgb(25, 34, 74);border-radius: 0px;
+                    }
+                    QComboBox::drop-down{
+                        image: url(icons/arrow.ico);
+                        width:12px;
+                        margin-right: 8px;
+                    }
+                    QComboBox QListView {
+                        background-color: rgb(25, 34, 74);
+                        outline: 0px;
+                        padding: 2px;
+                        border-radius: 5px;
+                        border: none;
+                    }
+                    QComboBox QListView:item {
+                    padding: 5px;
+                    border-radius: 3px;
+                    border-left: 2px solid rgb(18, 26, 61);
+                    }
+                    QComboBox QListView:item:hover {
+                    background: rgb(26,38,85);
+                    border-left: 2px solid rgb(33,62,118);
+                    }
+                    """)
+                    # self.manage_table.setCellWidget(row, 4, combo_result)
+
 
 if __name__ == '__main__':
     # Убираем работу с БД
     # session = db_init()
-    flask_thread = FlaskThread()
-    telegram_thread = TelegramBotThread(chat_id=CHAT_ID)
-    app_qt = QApplication(sys.argv)
-    main_app = MainWindow()
-    main_app.show()
-    logging.info('APP started!')
-    sys.exit(app_qt.exec())
+    try:
+        flask_thread = FlaskThread()
+        telegram_thread = TelegramBotThread(chat_id=CHAT_ID)
+        app_qt = QApplication(sys.argv)
+        main_app = MainWindow()
+        main_app.show()
+        logging.info('APP started!')
+        sys.exit(app_qt.exec())
+    except Exception:
+        traceback.print_exc()

@@ -11,6 +11,7 @@ log_dir = f'{user_log_dir(appname, appauthor)}'
 
 
 def init_dirs():
+    print(data_dir, log_dir)
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
 
