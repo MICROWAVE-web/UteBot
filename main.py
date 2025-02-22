@@ -23,7 +23,7 @@ from flask import Flask, request, abort
 
 from loggingfile import logging
 from mm_trading import OptionSeries
-from mm_types import MM_MODES
+from mm_types import MM_MODES, TYPE_ACCOUNT
 from programm_files import save_money_management_data, load_money_management_data, save_auth_data, \
     load_auth_data
 
@@ -40,6 +40,16 @@ app = Flask(__name__)
 ALLOWED_PARTNER_IDS = ["111-116", "777-13269"]
 
 sys.setrecursionlimit(2000)
+
+MM_TABLE_FIELDS = {
+    "Тип ММ": 1,
+    "Инвестиция": 2,
+    "Экспирация": 3,
+    "Результат": 4,
+    "Фильтр выплат": 5,
+    "Тейк профит": 6,
+    "Стоп лосс": 7
+}
 
 
 # Синхронная проверка версии
@@ -225,6 +235,7 @@ class MainWindow(QMainWindow):
             self.userid_edit.setText(auth_data['user_id'])
             self.urlEdit.setText(auth_data['url'])
             self.type_account.setCurrentText(auth_data['selected_type_account'])
+            self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
             # self.log_message('Данные последней успешной авторизации установлены.')
 
         # Сохранение таблицы, без уведомления, если успешно
@@ -293,7 +304,9 @@ class MainWindow(QMainWindow):
             except Exception:
                 traceback.print_exc()
         else:
-            logging.error("Client not connected!")
+            logging.error("Client not connected! Reconnection...")
+            self.bot.reconnect()
+            self.ute_open(data)
 
     def connect_to_server(self):
         flask_thread.data_received.connect(self.ute_open)
@@ -325,6 +338,7 @@ class MainWindow(QMainWindow):
                         "url": self.urlEdit.text()
 
                     }
+                    self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
                     save_auth_data(auth_data)
                     # self.log_message('Данные последней успешной авторизации сохранены.')
 
@@ -576,13 +590,13 @@ class MainWindow(QMainWindow):
 
             # Валидация инвестиции
             if rowCount > 0:
-                prev_value = self.manage_table.cellWidget(0, 1).text()
+                prev_value = self.manage_table.cellWidget(0, MM_TABLE_FIELDS["Инвестиция"]).text()
                 prev_type = "percent" if "%" in prev_value else "number"
 
                 if self.investment_type is None:
                     self.investment_type = prev_type
 
-                current_value = self.manage_table.item(rowCount, 1)
+                current_value = self.manage_table.item(rowCount, MM_TABLE_FIELDS["Инвестиция"])
                 if current_value and (("%" in current_value.text() and self.investment_type == "number") or
                                       ("%" not in current_value.text() and self.investment_type == "percent")):
                     QMessageBox.warning(self, "Ошибка", "Тип инвестиции должен быть единообразным!")
@@ -594,7 +608,7 @@ class MainWindow(QMainWindow):
             # поле результат
             combo = QComboBox()
             combo.setCurrentText(result_val)
-            if rowCount > 0 and self.selected_mm_mode != 4:
+            if rowCount > 0 and self.selected_mm_mode != 1:
                 combo.addItems(["WIN", "LOSS"])
                 combo.setStyleSheet("""
                 QComboBox {
@@ -654,11 +668,11 @@ class MainWindow(QMainWindow):
                 border-left: 2px solid rgb(33,62,118);
                 }
                 """)
-            self.manage_table.setCellWidget(rowCount, 4, combo)
+            self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Результат"], combo)
 
             # поле мм
             combo_mm = QComboBox()
-            combo_mm.setMinimumWidth(275)
+            # combo_mm.setMinimumWidth(275)
             if rowCount > 0:
                 combo_mm.addItems([item for _, item in MM_MODES.items()])
                 combo_mm.setStyleSheet("""
@@ -720,31 +734,31 @@ class MainWindow(QMainWindow):
                 }
                 """)
             combo_mm.setCurrentText(mm_type_val)
-            self.manage_table.setCellWidget(rowCount, 3, combo_mm)
+            self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Тип ММ"], combo_mm)
 
             # Подключаем сигнал изменения ячейки к слоту
             combo_mm.currentTextChanged.connect(self.update_mm_table)
 
             # Установка пустых значений
             for i in range(1, 8):
-                if i in [3, 4]:
+                if i in [MM_TABLE_FIELDS["Результат"], MM_TABLE_FIELDS["Тип ММ"]]:
                     continue
 
                 item = QLineEdit()
                 item.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                if i == 1:
+                if i == MM_TABLE_FIELDS["Инвестиция"]:
                     item.setValidator(self.investment_validator)
                     item.setText(invest_val)
-                elif i == 2:
+                elif i == MM_TABLE_FIELDS["Экспирация"]:
                     item.setValidator(self.expiration_validator)
                     item.setText(expiration_val)
-                elif i == 5:
+                elif i == MM_TABLE_FIELDS["Фильтр выплат"]:
                     item.setValidator(self.pay_filter)
                     item.setText(filter_payment_val)
-                elif i == 6:
+                elif i == MM_TABLE_FIELDS["Тейк профит"]:
                     item.setValidator(self.digit_validator)
                     item.setText(profit_val)
-                elif i == 7:
+                elif i == MM_TABLE_FIELDS["Стоп лосс"]:
                     item.setValidator(self.digit_validator)
                     item.setText(stop_val)
                 else:
@@ -791,7 +805,7 @@ class MainWindow(QMainWindow):
             for row in range(rowCount):
                 data[row] = {}
                 # Проверка инвестиции
-                investment_item = self.manage_table.cellWidget(row, 1)
+                investment_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Инвестиция"])
                 if investment_item:
                     value = investment_item.text().strip()
 
@@ -805,8 +819,19 @@ class MainWindow(QMainWindow):
                             return
                     data[row]["investment"] = value
 
+                    if self.account_type == 'real_dollar' and not (0.1 <= float(value) <= 2000):
+                        self.log_message(
+                            f"Баланс сделки в строке {row + 1} (${float(value)}) не удовлетворяет условиям (мин $0.1 "
+                            f"макс $2,000)")
+                        return
+                    elif self.account_type == 'real_rub' and not (20 <= float(value) <= 200000):
+                        self.log_message(
+                            f"Баланс сделки в строке {row + 1} (₽{float(value)}) не удовлетворяет условиям (мин ₽20 "
+                            f"макс ₽200,000)")
+                        return
+
                 # Проверка экспирации
-                expiration_item = self.manage_table.cellWidget(row, 2)
+                expiration_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Экспирация"])
                 if expiration_item:
                     value = expiration_item.text().strip()
                     if ":" in value:  # Формат времени
@@ -838,7 +863,7 @@ class MainWindow(QMainWindow):
                         return
 
                 # Проверка типа ММ
-                mm_item = self.manage_table.cellWidget(row, 3)
+                mm_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])
                 if mm_item and mm_item.currentText().strip() not in MM_MODES.values():
                     QMessageBox.warning(self, "Ошибка", f"Некорректный тип ММ в строке {row + 1}")
                     return
@@ -855,13 +880,14 @@ class MainWindow(QMainWindow):
 
                 # Проверка результата
                 if row > 0:
-                    result_item = self.manage_table.cellWidget(row, 4)
+                    result_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Результат"])
                     if result_item and result_item.currentText().strip() not in ["WIN", "LOSS"]:
                         QMessageBox.warning(self, "Ошибка", f"Результат должен быть WIN или LOSS в строке {row + 1}")
                         return
-                data[row]["result_type"] = self.manage_table.cellWidget(row, 4).currentText().strip()
+                data[row]["result_type"] = self.manage_table.cellWidget(row, MM_TABLE_FIELDS[
+                    "Результат"]).currentText().strip()
 
-                pay_filter = self.manage_table.cellWidget(row, 5)
+                pay_filter = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Фильтр выплат"])
                 if pay_filter and (
                         "%" not in pay_filter.text().strip() or pay_filter.text().replace("%", "").isdigit() is False):
                     QMessageBox.warning(self, "Ошибка",
@@ -871,7 +897,7 @@ class MainWindow(QMainWindow):
                     data[row]["filter_payment"] = pay_filter.text().strip()
 
                 # Проверка Тейк профит и Стоп лосс
-                for col in [6, 7]:
+                for col in [MM_TABLE_FIELDS["Тейк профит"], MM_TABLE_FIELDS["Стоп лосс"]]:
                     value_item = self.manage_table.cellWidget(row, col)
                     if value_item:
                         try:
@@ -880,8 +906,9 @@ class MainWindow(QMainWindow):
                             QMessageBox.warning(self, "Ошибка",
                                                 f"Тейк профит и Стоп лосс должны быть числами в строке {row + 1}")
                             return
-                data[row]["take_profit"] = self.manage_table.cellWidget(row, 6).text().strip()
-                data[row]["stop_loss"] = self.manage_table.cellWidget(row, 7).text().strip()
+                data[row]["take_profit"] = self.manage_table.cellWidget(row,
+                                                                        MM_TABLE_FIELDS["Тейк профит"]).text().strip()
+                data[row]["stop_loss"] = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Стоп лосс"]).text().strip()
 
             if not nide_notification:
                 QMessageBox.information(self, "Успех", "Данные сохранены успешно!")
@@ -907,14 +934,15 @@ class MainWindow(QMainWindow):
     def update_mm_table(self, text):
         # Когда значение в одном из комбобоксов изменится, обновляем все строки в этом столбце
         for row in range(self.manage_table.rowCount()):
-            combo = self.manage_table.cellWidget(row, 3)  # Получаем QComboBox из ячейки
+            combo = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])  # Получаем QComboBox из ячейки
             combo.setCurrentText(text)  # Устанавливаем тот же текст во всех строках
 
             # При режиме 4, отключаем поле Результат
 
             for row in range(1, self.manage_table.rowCount()):
-                if text == MM_MODES[4]:
-                    combo_result = self.manage_table.cellWidget(row, 4)  # Получаем QComboBox из ячейки
+                if text == MM_MODES[1]:
+                    combo_result = self.manage_table.cellWidget(row, MM_TABLE_FIELDS[
+                        "Результат"])  # Получаем QComboBox из ячейки
                     combo_result.setDisabled(True)
                     combo_result.setStyleSheet("""
                     QComboBox {
@@ -944,7 +972,8 @@ class MainWindow(QMainWindow):
                     """)
                     # self.manage_table.setCellWidget(row, 4, combo_result)
                 else:
-                    combo_result = self.manage_table.cellWidget(row, 4)  # Получаем QComboBox из ячейки
+                    combo_result = self.manage_table.cellWidget(row, MM_TABLE_FIELDS[
+                        "Результат"])  # Получаем QComboBox из ячейки
                     combo_result.setDisabled(False)
                     combo_result.setStyleSheet("""
                     QComboBox {

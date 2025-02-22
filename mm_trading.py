@@ -1,19 +1,18 @@
 import ast
-import asyncio
-import datetime
 import json
 import ssl
 import threading
 import time
 import traceback
 import uuid
+from datetime import timedelta
 
-import pytz
 from websocket import WebSocketApp, WebSocketConnectionClosedException
 
 from loggingfile import logging
 from mm_types import TYPE_ACCOUNT
 from programm_files import load_money_management_data
+from utils import get_expiration, check_availability_time_range
 
 
 def exeptions_determniant(err):
@@ -34,24 +33,6 @@ def exeptions_determniant(err):
     return f"{err}: {errs[err]}"
 
 
-def count_expiration_type_1(candle_long_in_minutes):
-    current_time = datetime.datetime.now(pytz.utc)
-    current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
-    logging.debug(f"Текущее время utc+3: {current_time=}")
-    divisors = list(range(0, 121, candle_long_in_minutes))
-    data_with_limit = current_time + datetime.timedelta(seconds=1)
-    logging.debug(f"Текущее время + минута и 1 секунды: {data_with_limit=}")
-    for d in divisors:
-        h = 0
-        if d >= 60:
-            h += 1
-            d -= 60
-        new_data = current_time.replace(minute=d, second=0, microsecond=0) + datetime.timedelta(hours=h)
-
-        if new_data > data_with_limit:
-            return new_data.strftime('%H:%M:%S')  # Возвращаем найденный делитель
-
-
 class OptionSeries:
     def __init__(self, auth_data, window, url, userid, token):
 
@@ -60,6 +41,13 @@ class OptionSeries:
         self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
 
         # Счётчик строк таблицы
+        self.COUNTERS = {
+            "type_1": {},  # Храним id текущих опционов: индекс в таблице, при переходе к слудющему, удаляем старый.
+            "type_2": {},  # Храним id текущих опционов: индекс в таблице, при переходе к слудющему, удаляем старый.
+            "type_3": 0,
+            "type_4": 0
+        }
+
         self.row_counter = 0
 
         self.mt4_pair = None
@@ -102,6 +90,7 @@ class OptionSeries:
         self.active_options = {}
         self.last_opened_option = None
         self.have_active_options = False
+        self.block_mt_requests = False
 
         # Последний опцион
         self.last_finished_option = None
@@ -128,23 +117,49 @@ class OptionSeries:
         # Провера типа ММ и наличия активных открытых опционов
         logging.debug(f"{self.window.selected_mm_mode=}")
         logging.debug(f"{self.have_active_options=}")
-        if self.window.selected_mm_mode == 3 and self.have_active_options is True:
+        if self.window.selected_mm_mode == 4 and self.have_active_options is True:
             text = f"{self.mt4_pair} сделка не открыта, есть открытый опцион по {self.mt4_pair}"
             self.window.log_message(text)
             logging.debug(text)
             return
 
-        if self.window.selected_mm_mode == 4 and self.have_active_options is False:
-            self.row_counter = 0
-        elif self.window.selected_mm_mode == 4 and self.have_active_options is True:
+        if self.block_mt_requests is True:
+            text = f"{self.mt4_pair} сделка не открыта, приём сигналов из MT4 приостановлен."
+            self.window.log_message(text)
+            logging.debug(text)
+            return
+
+        elif self.window.selected_mm_mode == 4 and self.have_active_options is False:
+            # В скоре будет открыт опцион с режимом 4. В этом режиме запрещён прием сигналов до окончания текущей
+            # серии опционов
+            self.block_mt_requests = True
+
+
+
+        # if self.window.selected_mm_mode == 1 and self.have_active_options is False:
+        #    self.row_counter = 0
+        elif self.window.selected_mm_mode == 1:
             self.row_counter += 1
             if self.row_counter >= len(self.deal_series):
                 self.row_counter = 0
 
-        asyncio.run(self.process_option())
-        # self.process_option()
+        self.process_option(new_serial=True)
 
-    async def process_option(self):
+    def process_option(self, new_serial=False):
+        self.reconnect()
+
+        # Проверка на интервалы сниженной выплаты
+        max_serial_time_long = timedelta()
+        for deal in self.deal_series:
+            expiration_data = get_expiration(deal)
+            max_serial_time_long += expiration_data["time_delta"]
+
+        if not check_availability_time_range(max_serial_time_long):
+            self.window.log_message(
+                f"Серия опционов пересекается с расписанием снижения выплат. Открытие опциона ({self.mt4_pair}:{self.mt4_direct}) остановлено.")
+            return
+
+        # Получение текущей сделки
         deal = self.deal_series[self.row_counter]
         logging.debug(f"{deal=}")
 
@@ -184,18 +199,13 @@ class OptionSeries:
             return
         elif self.account_type == 'real_rub' and not (20 <= investment <= 200000):
             self.window.log_message(
-                f"Баланс сделки (${investment}) не удовлетворяет условиям для открытия опциона ({self.mt4_pair}:{self.mt4_direct}) на аккаунте «{self.account_type_russ}». (мин 20 макс 200,000)")
+                f"Баланс сделки (₽{investment}) не удовлетворяет условиям для открытия опциона ({self.mt4_pair}:{self.mt4_direct}) на аккаунте «{self.account_type_russ}». (мин 20 макс 200,000)")
             return
 
         # Обработка экспирации
-        if ':' in deal["expiration"]:
-            w_type_exp = "2"
-            deal_time = deal["expiration"].split(':')
-
-        else:
-            w_type_exp = "1"
-            deal_time = count_expiration_type_1(int(deal["expiration"])).split(':')
-        logging.debug(f"{deal_time=}")
+        expiration_data = get_expiration(deal)
+        deal_time = expiration_data["deal_time"]
+        w_type_exp = expiration_data["w_type_exp"]
 
         pair_list = self.get_only_pair_list()
         logging.debug(f"{pair_list=}")
@@ -210,10 +220,10 @@ class OptionSeries:
                                      time_m=deal_time[1],
                                      time_s=deal_time[2], percent_par=0, w_type_exp=w_type_exp)
                     self.window.log_message(
-                        'Опцион открыт' if "Deal open" in str(self.serv_answ[(-1)]) else str(
-                            self.serv_answ[(-1)]))
+                        f'Опцион открыт. Пара: {self.mt4_pair}, Направление: {self.mt4_direct}, Инвестиция: {deal["investment"]}, '
+                        f'Экспирация: {deal["expiration"]} (Тип {w_type_exp}), Строка {self.row_counter + 1}.'
+                        if "Deal open" in str(self.serv_answ[(-1)]) else str(self.serv_answ[(-1)]))
                     logging.info('Option open')
-
 
             else:
                 self.window.log_message(
@@ -223,19 +233,27 @@ class OptionSeries:
             self.window.log_message(f"{self.mt4_pair} not exist")
             logging.warning(f"{self.mt4_pair} not exist")
 
-    def option_finished(self):
+    def option_finished(self, option_data):
         last_finished_option_key = str(self.last_finished_option["option_id"])
         last_opened_option_key = str(self.last_opened_option["option_id"])
 
         if last_finished_option_key == last_opened_option_key:
             logging.debug("Опцион завершен!")
-            if self.window.selected_mm_mode == 3 and self.have_active_options is False:
-                # self.process_option()
-                asyncio.run(self.process_option())
-                print("Закрытие опциона окончено!")
+            if self.window.selected_mm_mode == 4 and self.have_active_options is False:
+                if self.row_counter >= len(self.deal_series):
+                    logging.debug("Серия опционов завершена (конец таблицы)")
+                    self.window.log_message("Серия опционов завершена (конец таблицы)")
+                    return
+                if (option_data["info_finish_option"][0]["finish_current_result"].lower() != "=") or (
+                        option_data["info_finish_option"][0]["finish_current_result"].lower() !=
+                        self.deal_series[self.row_counter + 1]["result_type"].lower()):
+                    logging.debug("Серия завершена (Невыполнение условий результата)")
+                    self.window.log_message("Серия завершена (Невыполнение условий результата)")
+                    return
+                self.row_counter += 1
+                self.process_option(new_serial=False)
         else:
             logging.debug("Завершен не последний опцион")
-        time.sleep(1)
 
     # ______ UTEBOT: ______
 
@@ -272,21 +290,19 @@ class OptionSeries:
                         self.have_active_options = True
                         self.last_opened_option = data["api_massive_option"][0]
                         self.last_finished_option = None
-                    print(self.active_options)
 
                 if "finish_option" in data:
                     try:
                         logging.debug(f"OPTION FINISHED: {data}")
                         option_key = str(data["info_finish_option"][0]["option_id"])
                         if option_key in self.active_options.keys():
-                            print(self.active_options)
                             self.active_options.pop(option_key)
                             if len(self.active_options.keys()) == 0:
                                 self.have_active_options = False
+                                self.block_mt_requests = False
+                                # Разрешает приём запросов из МТ4
                             self.last_finished_option = data["info_finish_option"][0]
-                            self.option_finished()
-                            print(self.active_options)
-                            print(self.last_finished_option)
+                            self.option_finished(data)
 
                     except KeyError:
                         traceback.print_exc()
@@ -313,16 +329,17 @@ class OptionSeries:
         self.pending_requests[req_id] = (event, condition, response_container)
 
         try:
-            self.ws.send(message)
+            self.ws.send(message)  # Send the message to the WebSocket server
         except WebSocketConnectionClosedException:
-            self.reconnect()
+            self.reconnect()  # If the connection is closed, attempt to reconnect
             self.ws.send(message)
 
+        # Wait for the response or timeout
         if not event.wait(timeout=4):
             del self.pending_requests[req_id]
             raise TimeoutError("Request timed out")
 
-        # Return the stored response from the container
+        # Return the response stored in the container
         return response_container.get('response')
 
     def reconnect(self):
@@ -416,6 +433,3 @@ if __name__ == '__main__':
     url = "wss://2ute.ru:100"
     token = "8f21b220ff1d338ac7d5f38849b43a669bd22030"
     user_id = "14669"
-    bot = OptionSeries(url=url, token=token, userid=user_id)
-    print(bot.get_only_pair_list())
-    print(bot.get_only_pair_list())

@@ -49,5 +49,7 @@ def load_auth_data():
     except FileNotFoundError:
         return {}
 
+
+
 if __name__ == '__main__':
     init_dirs()
