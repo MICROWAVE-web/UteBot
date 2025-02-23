@@ -915,6 +915,8 @@ class MainWindow(QMainWindow):
                 self.allowToRunBot = True
             self.haveUnsavedRows = False
             save_money_management_data(data)
+            if self.bot:
+                self.bot.clean_counters()
         except Exception:
             traceback.print_exc()
             time.sleep(10)

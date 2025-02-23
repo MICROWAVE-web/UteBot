@@ -29,12 +29,17 @@ def load_money_management_data():
         return {}
 
 
-def save_statistic_data():
-    pass
+def save_statistic_data(statistic_data):
+    with open(fr'{data_dir}\statistic_data.log', 'w', encoding='utf-8') as f:
+        json.dump(statistic_data, f, indent=4, ensure_ascii=False)
 
 
 def load_statistic_data():
-    pass
+    try:
+        with open(fr'{data_dir}\statistic_data.log', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
 
 def save_auth_data(auth_data):
