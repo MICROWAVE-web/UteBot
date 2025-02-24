@@ -112,6 +112,10 @@ class OptionSeries:
             # Храним пару -> # Храним id текущих опционов: индекс в таблице, при переходе к слудющему, удаляем старый.
             "type_4": {}  # Храним пару -> индекс
         }
+        # Сохраненные mt4 сигналы
+        self.MT4_SIGNALS = {
+            "type_4": {}
+        }
 
     def update_mm_data(self):
         mm_data = load_money_management_data()
@@ -169,12 +173,21 @@ class OptionSeries:
 
         # Проверка на интервалы сниженной выплаты
         if new_serial:
-            max_serial_time_long = timedelta()
+            serial_start_points = []
+            serial_time_long = timedelta()
+            serial_start_points.append(serial_time_long)
             for deal in self.deal_series:
                 expiration_data = get_expiration(deal)
-                max_serial_time_long += expiration_data["time_delta"]
+                serial_time_long += expiration_data["time_delta"]
+                serial_start_points.append(serial_time_long)
 
-            if not check_availability_time_range(max_serial_time_long):
+            chkup, reason = check_availability_time_range(serial_start_points)
+            if not chkup and reason == "weekend":
+                self.window.log_message(
+                    f"Серия опционов пересекается с выходных днём. "
+                    f"Открытие опциона ({mt4_pair}:{mt4_direct}) остановлено.")
+                return
+            elif not chkup and reason == "low":
                 self.window.log_message(
                     f"Серия опционов пересекается с расписанием снижения выплат. "
                     f"Открытие опциона ({mt4_pair}:{mt4_direct}) остановлено.")
@@ -273,7 +286,7 @@ class OptionSeries:
         option_symbol = str(option_data["info_finish_option"][0]["symbol"])
         logging.debug("Опцион завершен!")
 
-        if self.window.selected_mm_mode == 4:
+        if self.window.selected_mm_mode == 4 and self.MT4_SIGNALS["type_4"].get(option_symbol):
 
             mt4_pair, mt4_direct = self.MT4_SIGNALS["type_4"][option_symbol]
 

@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timedelta
+from typing import List
 
 import pytz
 
@@ -63,39 +64,78 @@ time_intervals = [
     ("23:25:00", "23:31:59"),
 ]
 
-
-def parse_time(time_str):
-    return datetime.strptime(time_str, "%H:%M:%S").time()
-
-
-def check_overlap(start1, end1, start2, end2):
-    return max(start1, start2) <= min(end1, end2)
+# Определяем временные интервалы вечера пятницы - утра понедельника
+weekend_intervals = [
+    ("23:31:00", "07:55:00"),
+]
 
 
-def is_time_interval_in_schedule(interval_start, interval_end, intervals):
+def parse_datetime(time_str, next_day=False):
+    """Парсим строковое время и добавляем день, если нужно. Все датetime объекты будут с привязкой к часовому поясу UTC+3"""
+    now = datetime.now(pytz.timezone('Etc/GMT-3'))  # Текущее время в нужной временной зоне
+    dt = datetime.strptime(time_str, "%H:%M:%S").replace(year=now.year, month=now.month, day=now.day,
+                                                         tzinfo=pytz.timezone(
+                                                             'Etc/GMT-3'))  # Привязываем к часовому поясу
+    if next_day:
+        dt += timedelta(days=1)
+    return dt
+
+
+def check_overlap(point_time, start, end):
+    """Проверяем, есть ли пересечение или вхождение двух интервалов."""
+    # Сравниваем все объекты с часовым поясом UTC+3
+    return start <= point_time <= end
+
+
+def is_time_interval_in_schedule(point_time, intervals, next_day=False):
+    """Проверяем, попадает ли интервал в ежедневное расписание."""
     for start, end in intervals:
-        start_time = parse_time(start)
-        end_time = parse_time(end)
+        start_time = parse_datetime(start)
+        end_time = parse_datetime(end, next_day)
 
-        if check_overlap(interval_start.time(), interval_end.time(), start_time, end_time):
+        if check_overlap(point_time, start_time, end_time):
             return True
 
     return False
 
 
-def check_availability_time_range(range_from_now: timedelta):
+def check_weekend_overlap(end_time):
+    """Проверка, попадает ли интервал в выходные дни."""
+    end_day_of_week = end_time.weekday()
+
+    # Проверка для пятницы-субботы-воскресенья
+    if end_day_of_week in [4, 5, 6]:
+        return True
+
+    return False
+
+
+# Функция для проверки доступности в заданном интервале
+def check_availability_time_range(serial_start_points: List[timedelta]):
+    """Проверка доступности для открытия опциона."""
     # Получаем текущее время в часовом поясе UTC+3
     current_time = datetime.now(pytz.utc)
     current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
-    end_time = current_time + range_from_now
+    for serial_start_point in serial_start_points:
+        point_time = current_time + serial_start_point
 
-    # Проверяем вхождение текущего времени в расписание
-    if is_time_interval_in_schedule(current_time, end_time, time_intervals):
-        logging.debug("Текущее время входит в расписание.")
-        return False
-    else:
-        logging.debug("Текущее время не входит в расписание.")
-        return True
+        if point_time.day > current_time.day:
+            next_day = True
+        else:
+            next_day = False
+
+        # Проверка на выходные только для пятницы, субботы и воскресенья
+        if check_weekend_overlap(point_time):
+            print("Текущее время входит в интервал выходных.")
+            return False, "weekend"
+
+        # Проверяем вхождение текущего времени в ежедневное расписание
+        if is_time_interval_in_schedule(point_time, time_intervals, next_day):
+            print("Текущее время входит в расписание.")
+            return False, "low"
+
+    print("Текущее время не входит в расписание или в интервал выходных.")
+    return True, ""
 
 
 def convert_datetime_format(input_time):
@@ -226,6 +266,13 @@ def add_option_to_statistic(option_data, additional_data):
 
 
 if __name__ == "__main__":
+    pass
     # print(count_expiration_type_1(2))
-    print(convert_datetime_format("23 February 06:50:01"))
-    # check_availability_time_range(timedelta(hours=6, minutes=36))
+    # statistic_data = load_statistic_data()
+    # updated_data = recalculate_summary(statistic_data)
+    #  gsave_statistic_data(updated_data)
+    ll = [
+        timedelta(hours=100),
+
+    ]
+    check_availability_time_range(ll)

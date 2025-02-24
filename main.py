@@ -14,11 +14,11 @@ from datetime import datetime
 
 import requests
 import telebot
-from PyQt6 import uic
+from PyQt6 import uic, QtCore
 from PyQt6.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate
 from PyQt6.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QFileDialog, QHeaderView, QMessageBox, \
-    QLineEdit, QComboBox
+    QLineEdit, QComboBox, QProxyStyle
 from flask import Flask, request, abort
 
 from loggingfile import logging
@@ -180,6 +180,8 @@ class MainWindow(QMainWindow):
         icon_path = os.path.join(applicationPath, 'icon.ico')
         self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle('UteBot')
+
+
         self.pushButton.clicked.connect(self.start_client_thread)
         self.bot = None
         self.client_socket = None
@@ -1007,6 +1009,8 @@ class MainWindow(QMainWindow):
                     }
                     """)
                     # self.manage_table.setCellWidget(row, 4, combo_result)
+
+
 
 
 if __name__ == '__main__':

@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 from platformdirs import *
 
 appname = "UteBot"
@@ -39,7 +40,11 @@ def load_statistic_data():
         with open(fr'{data_dir}\statistic_data.log', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
-        return {}
+        return {
+            "summary": {
+            },
+            "trades": [],
+        }
 
 
 def save_auth_data(auth_data):
@@ -53,7 +58,6 @@ def load_auth_data():
             return json.load(f)
     except FileNotFoundError:
         return {}
-
 
 
 if __name__ == '__main__':
