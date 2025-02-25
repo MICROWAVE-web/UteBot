@@ -53,20 +53,17 @@ def count_expiration_type_1(candle_long_in_minutes):
 
 # Определяем временные интервалы
 time_intervals = [
+    ("00:00:00", "00:05:00"),
     ("07:55:00", "08:01:59"),
     ("16:55:00", "17:01:59"),
     ("17:55:00", "18:01:59"),
     ("18:55:00", "19:01:59"),
     ("19:55:00", "20:01:59"),
-    ("20:55:00", "21:01:59"),
-    ("21:55:00", "22:01:59"),
-    ("22:55:00", "23:01:59"),
-    ("23:25:00", "23:31:59"),
-]
-
-# Определяем временные интервалы вечера пятницы - утра понедельника
-weekend_intervals = [
-    ("23:31:00", "07:55:00"),
+    ("20:30:00", "23:59:59"),
+    # ("20:55:00", "21:01:59"),
+    # ("21:55:00", "22:01:59"),
+    # ("22:55:00", "23:01:59"),
+    # ("23:25:00", "23:31:59"),
 ]
 
 
@@ -116,7 +113,7 @@ def check_availability_time_range(serial_start_points: List[timedelta]):
     # Получаем текущее время в часовом поясе UTC+3
     current_time = datetime.now(pytz.utc)
     current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
-    for serial_start_point in serial_start_points:
+    for ind, serial_start_point in enumerate(serial_start_points, start=0):
         point_time = current_time + serial_start_point
 
         if point_time.day > current_time.day:
@@ -129,10 +126,19 @@ def check_availability_time_range(serial_start_points: List[timedelta]):
             print("Текущее время входит в интервал выходных.")
             return False, "weekend"
 
-        # Проверяем вхождение текущего времени в ежедневное расписание
-        if is_time_interval_in_schedule(point_time, time_intervals, next_day):
-            print("Текущее время входит в расписание.")
-            return False, "low"
+        # Проверяем конец серии
+        if ind == len(serial_start_points) - 1:
+            time_intervals_end = [
+                ("00:00:00", "00:05:00"),
+                ("20:30:00", "23:59:59"),
+            ]
+            if is_time_interval_in_schedule(point_time, time_intervals_end, next_day):
+                print("Текущее время входит в расписание.")
+                return False, "low"
+        else:
+            if is_time_interval_in_schedule(point_time, time_intervals, next_day):
+                print("Текущее время входит в расписание.")
+                return False, "low"
 
     print("Текущее время не входит в расписание или в интервал выходных.")
     return True, ""

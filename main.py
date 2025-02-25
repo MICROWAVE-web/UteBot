@@ -14,11 +14,11 @@ from datetime import datetime
 
 import requests
 import telebot
-from PyQt6 import uic, QtCore
+from PyQt6 import uic
 from PyQt6.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate
 from PyQt6.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QFileDialog, QHeaderView, QMessageBox, \
-    QLineEdit, QComboBox, QProxyStyle
+    QLineEdit, QComboBox
 from flask import Flask, request, abort
 
 from loggingfile import logging
@@ -181,7 +181,6 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle('UteBot')
 
-
         self.pushButton.clicked.connect(self.start_client_thread)
         self.bot = None
         self.client_socket = None
@@ -208,6 +207,7 @@ class MainWindow(QMainWindow):
         self.digit_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+?$"))
         self.expiration_validator = QRegularExpressionValidator(QRegularExpression(r"^(\d{2}:\d{2}:\d{2}|\d+)$"))
         self.pay_filter = QRegularExpressionValidator(QRegularExpression(r"\d+%"))
+        self.type_mm = QRegularExpressionValidator(QRegularExpression(r"\d{1}"))
 
         self.initManageTable()
 
@@ -569,7 +569,7 @@ class MainWindow(QMainWindow):
                 traceback.print_exc()
 
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
-               mm_type_val="3 - Сразу на текущем активе",
+               mm_type_val=MM_MODES[1],
                filter_payment_val="80%",
                profit_val="100000", stop_val="100", result_val='WIN', skip_check=False):
         if self.haveUnsavedRows and not skip_check:
@@ -604,8 +604,6 @@ class MainWindow(QMainWindow):
                     QMessageBox.warning(self, "Ошибка", "Тип инвестиции должен быть единообразным!")
                     self.manage_table.removeRow(rowCount)
                     return
-
-            # Поле для инвестиции с валидатором
 
             # поле результат
             combo = QComboBox()
@@ -672,11 +670,11 @@ class MainWindow(QMainWindow):
                 """)
             self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Результат"], combo)
 
-            # поле мм
-            combo_mm = QComboBox()
+            '''# поле мм
+            combo_mm = QLineEdit()
             # combo_mm.setMinimumWidth(275)
             if rowCount > 0:
-                combo_mm.addItems([item for _, item in MM_MODES.items()])
+                # combo_mm.addItems([item for _, item in MM_MODES.items()])
                 combo_mm.setStyleSheet("""
                 QComboBox {
                     background-color: #121a3d;border-radius: 0px;
@@ -736,18 +734,16 @@ class MainWindow(QMainWindow):
                 }
                 """)
             combo_mm.setCurrentText(mm_type_val)
-            self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Тип ММ"], combo_mm)
-
-            # Подключаем сигнал изменения ячейки к слоту
-            combo_mm.currentTextChanged.connect(self.update_mm_table)
+            self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Тип ММ"], combo_mm)'''
 
             # Установка пустых значений
             for i in range(1, 8):
-                if i in [MM_TABLE_FIELDS["Результат"], MM_TABLE_FIELDS["Тип ММ"]]:
+                if i in [MM_TABLE_FIELDS["Результат"]]:
                     continue
 
                 item = QLineEdit()
                 item.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
                 if i == MM_TABLE_FIELDS["Инвестиция"]:
                     item.setValidator(self.investment_validator)
                     item.setText(invest_val)
@@ -763,6 +759,11 @@ class MainWindow(QMainWindow):
                 elif i == MM_TABLE_FIELDS["Стоп лосс"]:
                     item.setValidator(self.digit_validator)
                     item.setText(stop_val)
+                elif i == MM_TABLE_FIELDS["Тип ММ"]:
+                    item.setValidator(self.type_mm)
+                    item.setText(mm_type_val)
+                    # Подключаем сигнал изменения ячейки к слоту
+                    item.textChanged.connect(self.update_mm_table)
                 else:
                     item.setValidator(self.digit_validator)
                 item.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
@@ -817,7 +818,8 @@ class MainWindow(QMainWindow):
                     else:
                         if ("%" in value and self.investment_type == "number") or (
                                 "%" not in value and self.investment_type == "percent"):
-                            QMessageBox.warning(self, "Ошибка", f"Несовместимый тип инвестиции в строке {row + 1}")
+                            QMessageBox.warning(self, "Ошибка",
+                                                f"Несовместимый тип инвестиции в строке {row + 1}. Во всех строках применяется ли бо конечное число, либо % от баланса на аккаунте.")
                             return
                     data[row]["investment"] = value
 
@@ -853,10 +855,9 @@ class MainWindow(QMainWindow):
                             traceback.print_exc()
                             return
                     elif value.isdigit():  # В минутах
-                        if not (60 % int(value) == 0 and 2 <= int(value) <= 60):
+                        if int(value) not in [1, 5, 15, 30, 60]:
                             QMessageBox.warning(self, "Ошибка",
-                                                f"Экспирация в формате числа должна быть кратна 60 и находитсья в "
-                                                f"диапазоне от 2 до 60. Строка {row + 1}")
+                                                f"Экспирация в формате числа должна быть одним из следующих значений: 1, 5, 15, 30, 60 Строка {row + 1}")
                             return
                         data[row]["expiration"] = value
                     else:  # Должно быть числом
@@ -866,11 +867,11 @@ class MainWindow(QMainWindow):
 
                 # Проверка типа ММ
                 mm_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])
-                if mm_item and mm_item.currentText().strip() not in MM_MODES.values():
+                if mm_item and mm_item.text().strip() not in MM_MODES.values():
                     QMessageBox.warning(self, "Ошибка", f"Некорректный тип ММ в строке {row + 1}")
                     return
                 if mm_item:
-                    mm_text = mm_item.currentText().strip()
+                    mm_text = mm_item.text().strip()
                     data[row]["mm_type"] = mm_text
 
                     # Сохраняем выбранный тип ММ
@@ -939,7 +940,7 @@ class MainWindow(QMainWindow):
         # Когда значение в одном из комбобоксов изменится, обновляем все строки в этом столбце
         for row in range(self.manage_table.rowCount()):
             combo = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])  # Получаем QComboBox из ячейки
-            combo.setCurrentText(text)  # Устанавливаем тот же текст во всех строках
+            combo.setText(text)  # Устанавливаем тот же текст во всех строках
 
             # При режиме 4, отключаем поле Результат
 
@@ -1009,8 +1010,6 @@ class MainWindow(QMainWindow):
                     }
                     """)
                     # self.manage_table.setCellWidget(row, 4, combo_result)
-
-
 
 
 if __name__ == '__main__':
