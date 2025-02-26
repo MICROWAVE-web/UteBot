@@ -106,10 +106,10 @@ color: white;
                                 padding: 5px;
                                 font-size: 12px;
 }
-                            
+
 QScrollBar:vertical, QScrollBar:horizontal {
     background: none;         /* Убираем все фоны, включая текстуры */
-	min-width: 8px;
+	width: 0px;
 }
 </string>
           </property>
@@ -463,11 +463,11 @@ QScrollBar:vertical, QScrollBar:horizontal {
                                 QHeaderView {
                                  background-color: rgb(18, 26, 61);
                                 }
-                            
-QScrollBar:vertical, QScrollBar:horizontal {
-    background: none;         /* Убираем все фоны, включая текстуры */
-width: 15px;
-}
+
+               QScrollBar:vertical, QScrollBar:horizontal {
+                    background: none;         /* Убираем все фоны, включая текстуры */
+                    width: 0px;
+               }
 
                             </string>
           </property>
@@ -559,8 +559,6 @@ padding-left: 6px;}
 
 
 QScrollBar:vertical, QScrollBar:horizontal {
-    background: none;         /* Убираем все фоны, включая текстуры */
-	width: 15px;
 }
 
 
@@ -865,9 +863,10 @@ padding-left: 14px;
                                 QHeaderView {
                                 background-color: rgb(18, 26, 61);
                                 }
-                            
+
 QScrollBar:vertical, QScrollBar:horizontal {
     background: none;         /* Убираем все фоны, включая текстуры */
+    width: 0px;
 }
 </string>
           </property>

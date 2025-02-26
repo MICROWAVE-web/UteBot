@@ -15,7 +15,7 @@ from datetime import datetime
 import requests
 import telebot
 from PyQt6 import uic
-from PyQt6.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate
+from PyQt6.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate, QTimer
 from PyQt6.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QFileDialog, QHeaderView, QMessageBox, \
     QLineEdit, QComboBox
@@ -26,6 +26,7 @@ from mm_trading import OptionSeries
 from mm_types import MM_MODES, TYPE_ACCOUNT
 from programm_files import save_money_management_data, load_money_management_data, save_auth_data, \
     load_auth_data
+from scrollbar_style import scrollbarstyle
 
 API_TOKEN = '8029150425:AAEmxk26MP4ZSpsnA433znXbDs4rW0EcKJI'
 CURRENT_VERSION = '1.0.0'  # Текущая версия бота
@@ -168,6 +169,7 @@ def query_example():
     return f'{pair}:{direct}'
 
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -242,6 +244,16 @@ class MainWindow(QMainWindow):
 
         # Сохранение таблицы, без уведомления, если успешно
         self.saveData(nide_notification=True)
+
+        # Скроллинг
+        self.trades_table.setStyleSheet(scrollbarstyle)
+        self.manage_table.setStyleSheet(scrollbarstyle)
+        self.textBrowser.setStyleSheet(scrollbarstyle)
+        self.textBrowser_2.setStyleSheet(scrollbarstyle)
+
+
+
+    # Проверка версии
 
     def check_version(self):
         try:

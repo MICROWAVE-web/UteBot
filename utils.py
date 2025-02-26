@@ -53,7 +53,7 @@ def count_expiration_type_1(candle_long_in_minutes):
 
 # Определяем временные интервалы
 time_intervals = [
-    ("00:00:00", "00:05:00"),
+    ("00:00:00", "05:00:00"),
     ("07:55:00", "08:01:59"),
     ("16:55:00", "17:01:59"),
     ("17:55:00", "18:01:59"),
@@ -115,7 +115,6 @@ def check_availability_time_range(serial_start_points: List[timedelta]):
     current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
     for ind, serial_start_point in enumerate(serial_start_points, start=0):
         point_time = current_time + serial_start_point
-
         if point_time.day > current_time.day:
             next_day = True
         else:
@@ -129,9 +128,10 @@ def check_availability_time_range(serial_start_points: List[timedelta]):
         # Проверяем конец серии
         if ind == len(serial_start_points) - 1:
             time_intervals_end = [
-                ("00:00:00", "00:05:00"),
+                ("00:00:00", "05:00:00"),
                 ("20:30:00", "23:59:59"),
             ]
+            logging.debug(f"last_time_point: {point_time}")
             if is_time_interval_in_schedule(point_time, time_intervals_end, next_day):
                 print("Текущее время входит в расписание.")
                 return False, "low"
@@ -277,8 +277,9 @@ if __name__ == "__main__":
     # statistic_data = load_statistic_data()
     # updated_data = recalculate_summary(statistic_data)
     #  gsave_statistic_data(updated_data)
-    ll = [
-        timedelta(hours=100),
 
+    ll = [
+        timedelta(hours=-8),
+        timedelta(hours=-8, minutes=10),
     ]
     check_availability_time_range(ll)
