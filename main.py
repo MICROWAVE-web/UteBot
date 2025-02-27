@@ -795,14 +795,6 @@ class MainWindow(QMainWindow):
             traceback.print_exc()
             time.sleep(10)
 
-    """def set_mm_type(self, data):
-        for n, m_name in MM_MODES.items():
-            if m_name == data["0"]["mm_type"]:
-                self.window.selected_mm_mode = n
-                break
-        print(self.window.selected_mm_mode)
-        """
-
     def saveData(self, nide_notification=False):
         data = {}
 
