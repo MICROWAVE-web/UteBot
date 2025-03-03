@@ -15,10 +15,10 @@ from datetime import datetime
 import requests
 import telebot
 from PyQt6 import uic
-from PyQt6.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate, QTimer
-from PyQt6.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics
+from PyQt6.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate
+from PyQt6.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics, QFont, QPainter, QColor
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QFileDialog, QHeaderView, QMessageBox, \
-    QLineEdit, QComboBox
+    QLineEdit, QComboBox, QLabel
 from flask import Flask, request, abort
 
 from loggingfile import logging
@@ -47,9 +47,9 @@ MM_TABLE_FIELDS = {
     "Инвестиция": 2,
     "Экспирация": 3,
     "Результат": 4,
-    "Фильтр выплат": 5,
-    "Тейк профит": 6,
-    "Стоп лосс": 7
+    # "Фильтр выплат": 5,
+    "Тейк профит": 5,
+    "Стоп лосс": 6
 }
 
 
@@ -169,7 +169,6 @@ def query_example():
     return f'{pair}:{direct}'
 
 
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -181,7 +180,7 @@ class MainWindow(QMainWindow):
         uic.loadUi(ui_path, self)
         icon_path = os.path.join(applicationPath, 'icon.ico')
         self.setWindowIcon(QIcon(icon_path))
-        self.setWindowTitle('UteBot')
+        self.setWindowTitle('UTE Connect')
 
         self.pushButton.clicked.connect(self.start_client_thread)
         self.bot = None
@@ -205,10 +204,9 @@ class MainWindow(QMainWindow):
         self.allowToRunBot = False
 
         # Регулярное выражение для проверки инвестиции (разрешены цифры и знак %)
-        self.investment_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+(\.\d{1})?$"))
+        self.investment_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+(\.\d{1})$"))
         self.digit_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+?$"))
         self.expiration_validator = QRegularExpressionValidator(QRegularExpression(r"^(\d{2}:\d{2}:\d{2}|\d+)$"))
-        self.pay_filter = QRegularExpressionValidator(QRegularExpression(r"\d+%"))
         self.type_mm = QRegularExpressionValidator(QRegularExpression(r"\d{1}"))
 
         self.initManageTable()
@@ -251,10 +249,84 @@ class MainWindow(QMainWindow):
         self.textBrowser.setStyleSheet(scrollbarstyle)
         self.textBrowser_2.setStyleSheet(scrollbarstyle)
 
+        self.setStatusBar(None)
 
+        # Добавляем текст поверх всех виджетов
+        self.overlay_text = TransparentText(f'Версия: {CURRENT_VERSION}', self)
+        self.update_text_position()  # Устанавливаем позицию текста
+
+        self.fix_table()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_text_position()  # Обновляем позицию текста при изменении размера окна
+
+    def update_text_position(self):
+        """Обновляет позицию текста внизу окна."""
+        text_width = self.overlay_text.width()
+        text_height = self.overlay_text.height()
+        window_width = self.width()
+        window_height = self.height()
+
+        # Располагаем текст снизу, по центру
+        x = 15
+        y = window_height - text_height - 15  # Отступ в 10 пикселей от нижнего края
+        self.overlay_text.move(x, y)
+
+    def fix_table(self):
+        # на windows 10 они отображаются не корректно
+        self.manage_table.setStyleSheet(self.manage_table.styleSheet() + """
+        QTableWidget {
+                                background: rgb(12,17,47);
+                                color: white;
+                                border: none;
+                                font-size: 14px;
+                                }
+            QHeaderView::section {
+                background-color: rgb(18, 26, 61);
+                color: white;
+                font-weight: bold;
+            }
+        """)
+
+        self.trades_table.setStyleSheet(self.trades_table.styleSheet() + """
+        QTableWidget {
+                                background: rgb(12,17,47);
+                                color: white;
+                                border: none;
+                                font-size: 14px;
+                                }
+                    QHeaderView::section {
+                        background-color: rgb(18, 26, 61);
+                        color: white;
+                        font-weight: bold;
+                    }
+                """)
+
+        self.textBrowser.setStyleSheet(self.textBrowser.styleSheet() + """
+                QTextBrowser {
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 5px;
+                                font-size: 12px;
+}
+                    """)
+
+        self.textBrowser_2.setStyleSheet(self.textBrowser_2.styleSheet() + """
+                QTextBrowser {
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding-left: 10px;
+                                padding-right: 5px;
+                                padding-top: 5px;
+                                padding-bottom: 5px;
+                                font-size: 12px;
+}
+                    """)
 
     # Проверка версии
-
     def check_version(self):
         try:
             # Запускаем проверку в отдельном потоке
@@ -274,7 +346,13 @@ class MainWindow(QMainWindow):
         token = self.token_edit.text()
         user_id = self.userid_edit.text()
         url = self.urlEdit.text()
-
+        auth_data = {
+            "selected_type_account": self.type_account.currentText(),
+            "token": self.token_edit.text(),
+            "user_id": self.userid_edit.text(),
+            "url": self.urlEdit.text()
+        }
+        save_auth_data(auth_data)
         verified = False
 
         if self.bot is None:
@@ -376,7 +454,7 @@ class MainWindow(QMainWindow):
 
     def log_message(self, message):
         self.textBrowser.append(
-            f"<p><span style='color:gray'>{datetime.now().strftime('%m-%d-%Y, %H:%M:%S')}:</span> {message}</p>")  # Зачем был ноль в конце?
+            f"<p><span style='color:gray'>{datetime.now().strftime('%Y-%m-%d, %H:%M:%S')}:</span> {message}</p>")  # Зачем был ноль в конце?
 
     # В методе closeEvent
     def closeEvent(self, a0):
@@ -561,19 +639,19 @@ class MainWindow(QMainWindow):
 
         # Растягиваем остальные столбцы
         for col in range(1, self.manage_table.columnCount()):
-            if col in [3]:
+            if col in []:
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
             else:
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
 
         data = load_money_management_data()
+        print(data)
 
         for key, item in data.items():
             try:
                 self.addRow(invest_val=item["investment"],
                             expiration_val=item["expiration"],
                             mm_type_val=item["mm_type"],
-                            filter_payment_val=item["filter_payment"],
                             profit_val=item["take_profit"],
                             stop_val=item["stop_loss"],
                             result_val=item["result_type"], skip_check=True)
@@ -582,7 +660,6 @@ class MainWindow(QMainWindow):
 
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
                mm_type_val=MM_MODES[1],
-               filter_payment_val="80%",
                profit_val="100000", stop_val="100", result_val='WIN', skip_check=False):
         if self.haveUnsavedRows and not skip_check:
             QMessageBox.warning(self, "Ошибка",
@@ -619,7 +696,6 @@ class MainWindow(QMainWindow):
 
             # поле результат
             combo = QComboBox()
-            combo.setCurrentText(result_val)
             if rowCount > 0 and self.selected_mm_mode != 1:
                 combo.addItems(["WIN", "LOSS"])
                 combo.setStyleSheet("""
@@ -680,6 +756,7 @@ class MainWindow(QMainWindow):
                 border-left: 2px solid rgb(33,62,118);
                 }
                 """)
+            combo.setCurrentText(result_val)
             self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Результат"], combo)
 
             '''# поле мм
@@ -749,7 +826,7 @@ class MainWindow(QMainWindow):
             self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Тип ММ"], combo_mm)'''
 
             # Установка пустых значений
-            for i in range(1, 8):
+            for i in range(1, 7):
                 if i in [MM_TABLE_FIELDS["Результат"]]:
                     continue
 
@@ -762,9 +839,6 @@ class MainWindow(QMainWindow):
                 elif i == MM_TABLE_FIELDS["Экспирация"]:
                     item.setValidator(self.expiration_validator)
                     item.setText(expiration_val)
-                elif i == MM_TABLE_FIELDS["Фильтр выплат"]:
-                    item.setValidator(self.pay_filter)
-                    item.setText(filter_payment_val)
                 elif i == MM_TABLE_FIELDS["Тейк профит"]:
                     item.setValidator(self.digit_validator)
                     item.setText(profit_val)
@@ -827,12 +901,14 @@ class MainWindow(QMainWindow):
                             return
                     data[row]["investment"] = value
 
-                    if self.account_type == 'real_dollar' and not (0.1 <= float(value) <= 2000):
+                    if hasattr(self, "account_type") and self.account_type == 'real_dollar' and not (
+                            0.1 <= float(value) <= 2000):
                         self.log_message(
                             f"Баланс сделки в строке {row + 1} (${float(value)}) не удовлетворяет условиям (мин $0.1 "
                             f"макс $2,000)")
                         return
-                    elif self.account_type == 'real_rub' and not (20 <= float(value) <= 200000):
+                    elif hasattr(self, "account_type") and self.account_type == 'real_rub' and not (
+                            20 <= float(value) <= 200000):
                         self.log_message(
                             f"Баланс сделки в строке {row + 1} (₽{float(value)}) не удовлетворяет условиям (мин ₽20 "
                             f"макс ₽200,000)")
@@ -871,8 +947,9 @@ class MainWindow(QMainWindow):
 
                 # Проверка типа ММ
                 mm_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])
+
                 if mm_item and mm_item.text().strip() not in MM_MODES.values():
-                    QMessageBox.warning(self, "Ошибка", f"Некорректный тип ММ в строке {row + 1}")
+                    QMessageBox.warning(self, "Ошибка", f"Некорректный режим обработки в строке {row + 1}")
                     return
                 if mm_item:
                     mm_text = mm_item.text().strip()
@@ -885,6 +962,12 @@ class MainWindow(QMainWindow):
                             break
                     self.update_mm_table(mm_text)
 
+                    if not nide_notification:
+                        if rowCount <= 1 and mm_text in [MM_MODES[1], MM_MODES[2], MM_MODES[3], MM_MODES[4]]:
+                            QMessageBox.warning(self, "Ошибка",
+                                                f"Для выбранного вами режима необходимо настроить хотя бы 2 строки")
+                            return
+
                 # Проверка результата
                 if row > 0:
                     result_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Результат"])
@@ -893,15 +976,6 @@ class MainWindow(QMainWindow):
                         return
                 data[row]["result_type"] = self.manage_table.cellWidget(row, MM_TABLE_FIELDS[
                     "Результат"]).currentText().strip()
-
-                pay_filter = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Фильтр выплат"])
-                if pay_filter and (
-                        "%" not in pay_filter.text().strip() or pay_filter.text().replace("%", "").isdigit() is False):
-                    QMessageBox.warning(self, "Ошибка",
-                                        f"Проверьте Фильтр выплат в строке {row + 1} на корректность, например 70%")
-                    return
-                if pay_filter:
-                    data[row]["filter_payment"] = pay_filter.text().strip()
 
                 # Проверка Тейк профит и Стоп лосс
                 for col in [MM_TABLE_FIELDS["Тейк профит"], MM_TABLE_FIELDS["Стоп лосс"]]:
@@ -946,74 +1020,112 @@ class MainWindow(QMainWindow):
             combo = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])  # Получаем QComboBox из ячейки
             combo.setText(text)  # Устанавливаем тот же текст во всех строках
 
-            # При режиме 4, отключаем поле Результат
+            # При режиме 4, отключаем поле Результат и другие
 
             for row in range(1, self.manage_table.rowCount()):
-                if text == MM_MODES[1]:
-                    combo_result = self.manage_table.cellWidget(row, MM_TABLE_FIELDS[
-                        "Результат"])  # Получаем QComboBox из ячейки
-                    combo_result.setDisabled(True)
-                    combo_result.setStyleSheet("""
-                    QComboBox {
-                        background-color: #192142;border-radius: 0px; color: #8996c7;
-                    }
-                    QComboBox::drop-down{
-                        image: url(icons/arrow.ico);
-                        width:12px;
-                        margin-right: 8px;
-                    }
-                    QComboBox QListView {
-                        background-color: rgb(18, 26, 61);
-                        outline: 0px;
-                        padding: 2px;
-                        border-radius: 5px;
-                        border: none;
-                    }
-                    QComboBox QListView:item {
-                    padding: 5px;
-                    border-radius: 3px;
-                    border-left: 2px solid rgb(18, 26, 61);
-                    }
-                    QComboBox QListView:item:hover {
-                    background: rgb(26,38,85);
-                    border-left: 2px solid rgb(33,62,118);
-                    }
-                    """)
-                    # self.manage_table.setCellWidget(row, 4, combo_result)
-                else:
-                    combo_result = self.manage_table.cellWidget(row, MM_TABLE_FIELDS[
-                        "Результат"])  # Получаем QComboBox из ячейки
-                    combo_result.setDisabled(False)
-                    combo_result.setStyleSheet("""
-                    QComboBox {
-                        background-color: #121a3d;border-radius: 0px;
-                    }
-                    QComboBox:on {
-                        background-color: rgb(25, 34, 74);border-radius: 0px;
-                    }
-                    QComboBox::drop-down{
-                        image: url(icons/arrow.ico);
-                        width:12px;
-                        margin-right: 8px;
-                    }
-                    QComboBox QListView {
-                        background-color: rgb(25, 34, 74);
-                        outline: 0px;
-                        padding: 2px;
-                        border-radius: 5px;
-                        border: none;
-                    }
-                    QComboBox QListView:item {
-                    padding: 5px;
-                    border-radius: 3px;
-                    border-left: 2px solid rgb(18, 26, 61);
-                    }
-                    QComboBox QListView:item:hover {
-                    background: rgb(26,38,85);
-                    border-left: 2px solid rgb(33,62,118);
-                    }
-                    """)
-                    # self.manage_table.setCellWidget(row, 4, combo_result)
+
+                for i in range(1, 7):
+                    if i in [MM_TABLE_FIELDS["Результат"]] and text in [MM_MODES[1], MM_MODES[0]]:
+                        combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
+                        combo_result.setDisabled(True)
+                        combo_result.setStyleSheet("""
+                                            QComboBox {
+                                                background-color: #192142;border-radius: 0px; color: #8996c7;
+                                            }
+                                            QComboBox::drop-down{
+                                                image: url(icons/arrow.ico);
+                                                width:12px;
+                                                margin-right: 8px;
+                                            }
+                                            QComboBox QListView {
+                                                background-color: rgb(18, 26, 61);
+                                                outline: 0px;
+                                                padding: 2px;
+                                                border-radius: 5px;
+                                                border: none;
+                                            }
+                                            QComboBox QListView:item {
+                                            padding: 5px;
+                                            border-radius: 3px;
+                                            border-left: 2px solid rgb(18, 26, 61);
+                                            }
+                                            QComboBox QListView:item:hover {
+                                            background: rgb(26,38,85);
+                                            border-left: 2px solid rgb(33,62,118);
+                                            }
+                                            """)
+
+                    elif i not in [MM_TABLE_FIELDS["Результат"]] and text in MM_MODES[0]:
+                        line_edit_element = self.manage_table.cellWidget(row, i)
+
+                        line_edit_element.setDisabled(True)
+                        line_edit_element.setStyleSheet("""
+                        QLineEdit {
+                            background-color: #192142;border-radius: 0px; color: #8996c7;
+                        }
+                        """)
+
+                for i in range(1, 7):
+                    if i in [MM_TABLE_FIELDS["Результат"]] and text not in [MM_MODES[1], MM_MODES[0]]:
+                        combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
+                        combo_result.setDisabled(False)
+                        combo_result.setStyleSheet("""
+                                            QComboBox {
+                                                background-color: #121a3d;border-radius: 0px;
+                                            }
+                                            QComboBox:on {
+                                                background-color: rgb(25, 34, 74);border-radius: 0px;
+                                            }
+                                            QComboBox::drop-down{
+                                                image: url(icons/arrow.ico);
+                                                width:12px;
+                                                margin-right: 8px;
+                                            }
+                                            QComboBox QListView {
+                                                background-color: rgb(25, 34, 74);
+                                                outline: 0px;
+                                                padding: 2px;
+                                                border-radius: 5px;
+                                                border: none;
+                                            }
+                                            QComboBox QListView:item {
+                                            padding: 5px;
+                                            border-radius: 3px;
+                                            border-left: 2px solid rgb(18, 26, 61);
+                                            }
+                                            QComboBox QListView:item:hover {
+                                            background: rgb(26,38,85);
+                                            border-left: 2px solid rgb(33,62,118);
+                                            }
+                                            """)
+
+                    elif i not in [MM_TABLE_FIELDS["Результат"]] and text not in MM_MODES[0]:
+                        line_edit_element = self.manage_table.cellWidget(row, i)
+
+                        line_edit_element.setDisabled(False)
+                        line_edit_element.setStyleSheet("""
+                        QLineEdit {
+                            background-color: #121a3d;border-radius: 0px;
+                        }
+                        """)
+
+
+class TransparentText(QLabel):
+    def __init__(self, text, parent):
+        super().__init__(text, parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # Прозрачный фон
+        self.setStyleSheet("color: rgba(255, 255, 255, 150);")  # Полупрозрачный текст (белый, 150/255 прозрачности)
+        self.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        self.adjustSize()  # Автоматический размер под текст
+        self.move(50, 50)  # Позиция текста внутри окна
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 30))  # Полупрозрачный черный фон под текстом
+        painter.drawRect(self.rect())  # Рисуем фон
+        super().paintEvent(event)
 
 
 if __name__ == '__main__':
@@ -1022,6 +1134,7 @@ if __name__ == '__main__':
     try:
         flask_thread = FlaskThread()
         telegram_thread = TelegramBotThread(chat_id=CHAT_ID)
+
         app_qt = QApplication(sys.argv)
         main_app = MainWindow()
         main_app.show()

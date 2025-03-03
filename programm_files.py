@@ -3,9 +3,9 @@ import os
 
 from platformdirs import *
 
-appname = "UteBot"
+appname = "UTEConnect"
 
-appauthor = "UteBot"
+appauthor = "UTEConnect"
 
 data_dir = f'{user_data_dir(appname, appauthor)}'
 log_dir = f'{user_log_dir(appname, appauthor)}'

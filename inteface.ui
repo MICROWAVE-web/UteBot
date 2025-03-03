@@ -2,12 +2,15 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
+  <property name="windowModality">
+   <enum>Qt::NonModal</enum>
+  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1455</width>
-    <height>707</height>
+    <width>1658</width>
+    <height>616</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -16,21 +19,30 @@
     <verstretch>0</verstretch>
    </sizepolicy>
   </property>
+  <property name="contextMenuPolicy">
+   <enum>Qt::ActionsContextMenu</enum>
+  </property>
   <property name="windowTitle">
    <string>UteBot</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">background-color: rgb(13, 17, 48);
+   <string notr="true">background-color: rgb(13, 17, 47);
 color: white;
 
 
 </string>
   </property>
+  <property name="animated">
+   <bool>true</bool>
+  </property>
+  <property name="unifiedTitleAndToolBarOnMac">
+   <bool>false</bool>
+  </property>
   <widget class="QWidget" name="centralwidget">
    <property name="sizePolicy">
     <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
      <horstretch>0</horstretch>
-     <verstretch>0</verstretch>
+     <verstretch>17</verstretch>
     </sizepolicy>
    </property>
    <property name="styleSheet">
@@ -53,7 +65,7 @@ color: white;
     <property name="spacing">
      <number>6</number>
     </property>
-    <item row="0" column="1">
+    <item row="2" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -66,8 +78,11 @@ color: white;
                         background: rgb(12,17,47);
                         color: white;
                         font-weight: bold;
-                        padding: 8px;
+                        padding-top: 8px;
+padding-left: 8px;
+padding-right: 8px; padding-bottom: -20px;
                         border-radius: 5px;
+margin-bottom: 50px;
                         }
 
                         QTabBar::tab:selected {
@@ -80,7 +95,7 @@ color: white;
                     </string>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tab_authorization">
        <property name="sizePolicy">
@@ -96,28 +111,6 @@ color: white;
         <property name="spacing">
          <number>15</number>
         </property>
-        <item row="0" column="1" rowspan="8">
-         <widget class="QTextBrowser" name="textBrowser">
-          <property name="styleSheet">
-           <string notr="true">QTextBrowser {
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 5px;
-                                font-size: 12px;
-}
-
-QScrollBar:vertical, QScrollBar:horizontal {
-    background: none;         /* Убираем все фоны, включая текстуры */
-	width: 0px;
-}
-</string>
-          </property>
-          <property name="placeholderText">
-           <string>Здесь будут появляться логи.</string>
-          </property>
-         </widget>
-        </item>
         <item row="0" column="0">
          <widget class="QLineEdit" name="urlEdit">
           <property name="maximumSize">
@@ -161,28 +154,6 @@ QScrollBar:vertical, QScrollBar:horizontal {
           </property>
           <property name="placeholderText">
            <string>UserId</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLineEdit" name="token_edit">
-          <property name="maximumSize">
-           <size>
-            <width>500</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 8px;
-                                font-size: 12px;
-                            </string>
-          </property>
-          <property name="placeholderText">
-           <string>Token</string>
           </property>
          </widget>
         </item>
@@ -275,25 +246,25 @@ QScrollBar:vertical, QScrollBar:horizontal {
           </property>
          </widget>
         </item>
-        <item row="5" column="0">
-         <widget class="QTimeEdit" name="timeEdit">
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>0</height>
-           </size>
-          </property>
+        <item row="0" column="1" rowspan="8">
+         <widget class="QTextBrowser" name="textBrowser">
           <property name="styleSheet">
-           <string notr="true">
+           <string notr="true">QTextBrowser {
                                 background-color: rgb(18, 26, 61);
                                 color: white;
                                 border-radius: 5px;
                                 padding: 5px;
                                 font-size: 12px;
-                            </string>
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: none;         /* Убираем все фоны, включая текстуры */
+	width: 0px;
+}
+</string>
           </property>
-          <property name="displayFormat">
-           <string>hh:mm:ss</string>
+          <property name="placeholderText">
+           <string>Здесь будут появляться логи.</string>
           </property>
          </widget>
         </item>
@@ -316,6 +287,50 @@ QScrollBar:vertical, QScrollBar:horizontal {
           </property>
           <property name="value">
            <number>80</number>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="0">
+         <widget class="QTimeEdit" name="timeEdit">
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 5px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="displayFormat">
+           <string>hh:mm:ss</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLineEdit" name="token_edit">
+          <property name="maximumSize">
+           <size>
+            <width>500</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 8px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="placeholderText">
+           <string>Token</string>
           </property>
          </widget>
         </item>
@@ -375,69 +390,6 @@ QScrollBar:vertical, QScrollBar:horizontal {
         <string>Мани-менеджмент</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_3">
-        <item row="3" column="5">
-         <widget class="QPushButton" name="saveButton">
-          <property name="maximumSize">
-           <size>
-            <width>150</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 5px;
-                                font-size: 12px;
-                            </string>
-          </property>
-          <property name="text">
-           <string>Применить настройки</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="3">
-         <widget class="QPushButton" name="deleteButton">
-          <property name="maximumSize">
-           <size>
-            <width>130</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: #a83e3e;
-                                color: white;
-                                border-radius: 5px;
-                                padding: 5px;
-                                font-size: 12px;
-                            </string>
-          </property>
-          <property name="text">
-           <string>Удалить позицию</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="4">
-         <widget class="QPushButton" name="addButton">
-          <property name="maximumSize">
-           <size>
-            <width>130</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: rgb(83, 140, 85);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 5px;
-                                font-size: 12px;
-                            </string>
-          </property>
-          <property name="text">
-           <string>Добавить позицию</string>
-          </property>
-         </widget>
-        </item>
         <item row="1" column="0" colspan="6">
          <widget class="QTableWidget" name="manage_table">
           <property name="sizePolicy">
@@ -519,11 +471,6 @@ QScrollBar:vertical, QScrollBar:horizontal {
           </column>
           <column>
            <property name="text">
-            <string>Фильтр выплат</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
             <string>Тейк профит</string>
            </property>
           </column>
@@ -534,7 +481,70 @@ QScrollBar:vertical, QScrollBar:horizontal {
           </column>
          </widget>
         </item>
-        <item row="1" column="6">
+        <item row="2" column="4">
+         <widget class="QPushButton" name="addButton">
+          <property name="maximumSize">
+           <size>
+            <width>130</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgb(83, 140, 85);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 5px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="text">
+           <string>Добавить позицию</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="3">
+         <widget class="QPushButton" name="deleteButton">
+          <property name="maximumSize">
+           <size>
+            <width>130</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: #a83e3e;
+                                color: white;
+                                border-radius: 5px;
+                                padding: 5px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="text">
+           <string>Удалить позицию</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="5">
+         <widget class="QPushButton" name="saveButton">
+          <property name="maximumSize">
+           <size>
+            <width>150</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 5px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="text">
+           <string>Применить настройки</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="6" rowspan="2">
          <widget class="QTextBrowser" name="textBrowser_2">
           <property name="minimumSize">
            <size>
@@ -578,7 +588,7 @@ hr { height: 1px; border-width: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:16pt;&quot;&gt;Режимы обработки сигналов.&lt;/span&gt;&lt;br /&gt;&lt;br /&gt;&lt;span style=&quot; font-size:11pt; font-weight:700;&quot;&gt;Режим «1» (ММ применяется на любой сигнал, без ожидания результата).&lt;br /&gt;&lt;/span&gt;&lt;span style=&quot; font-size:11pt;&quot;&gt;Для того что бы использовать данный режим, пропишите в столбце режим торговли «1». В данном режиме есть два варианта настройки торговли:&lt;br /&gt;1. Фиксированными ставками – настраивается только первая строка ММ, в таком случае бот торгует фиксированными ставками, создает сделки на любом активе, в любой момент времени, не зависимо есть ли ранее открытые позиции или нет.&lt;br /&gt;2. Серия сделок – настраивается более одной строки ММ, в таком случае бот будет создавать серию сделок, с параметрами указанными в строках ММ, по порядку нумерации, сделки открываются на любом активе, в любой момент времени, не важно есть ли открытые позиции или нет. Серия сделок может не создаться, из за предстоящего снижения доходности по активу. Серия сделок завершается и возвращается к начальной первой строке по достижению результата или когда закончатся прописанные шаги (строки) в серии сделок ММ.&lt;br /&gt;&lt;br /&gt;&lt;/span&gt;&lt;span style=&quot; font-size:11pt; font-weight:700;&quot;&gt;Режим «2» (ММ применяется сразу на текущем активе, с применением параметра WIN/LOSS).&lt;br /&gt;&lt;/span&gt;&lt;span style=&quot; font-size:11pt;&quot;&gt;Для того что бы использовать данный режим, пропишите в столбце режим торговли «2». В данном режиме необходимо настроить более одной строки ММ, в таком случае бот будет создавать серию сделок, с параметрами указанными в строках ММ, по порядку нумерации, как только закроется текущая сделка, на текущем активе, сразу создается новая сделка, при выполнении условия «WIN/LOSS». В данном режиме серия сделок создается на каждом отдельном сигнале,  на каждой валютной паре по отдельности. Серия сделок может не создаться из за предстоящего снижения доходности по активу. Серия сделок завершается и возвращается к начальной первой строке по достижению результата или когда закончатся прописанные шаги (строки) в серии сделок ММ. Если есть открытая сделка по текущему активу, не возможно создать новую, пока не закроется текущая.&lt;br /&gt;&lt;br /&gt;&lt;/span&gt;&lt;span style=&quot; font-size:11pt; font-weight:700;&quot;&gt;Режим «3»&lt;/span&gt;&lt;span style=&quot; font-size:11pt;&quot;&gt; &lt;/span&gt;&lt;span style=&quot; font-size:11pt; font-weight:700;&quot;&gt;(ММ применяется на следующий сигнал любого актива, с применением параметра WIN/LOSS).&lt;br /&gt;&lt;/span&gt;&lt;span style=&quot; font-size:11pt;&quot;&gt;Для того что бы использовать данный режим, пропишите в столбце режим торговли «3». В данном режиме необходимо настроить более одной строки ММ, в таком случае бот будет создавать серию сделок, с параметрами указанными в строках ММ, сделки внутри серии сделок создаются только тогда, когда закроется предыдущая сделка на любом из активов, и следующая сделка создается только на основании выполнения условий «WIN/LOSS» и поступлении нового сигнала с любого актива мт4/мт5. В данном режиме серия сделок ведется сразу на всех валютных парах, каждый новый сигнал с любой валютной паре это новая строка ММ. Сделка внутри серии сделок может быть отменена снижением доходности по активу, в таком случае бот создает еще одну сделку с такими же параметрами при следующем сигнале с любого актива мт4/мт5. Серия сделок завершается и возвращается к начальной строке по достижению результата или когда закончатся прописанные шаги (строки) в серии сделок ММ. Если есть открытая сделка по любому активу, не возможно создать новую, пока не закроется текущая.&lt;br /&gt;&lt;br /&gt;&lt;/span&gt;&lt;span style=&quot; font-size:11pt; font-weight:700;&quot;&gt;Режим «4»&lt;/span&gt;&lt;span style=&quot; font-size:11pt;&quot;&gt; &lt;/span&gt;&lt;span style=&quot; font-size:11pt; font-weight:700;&quot;&gt;(ММ применяется на следующий сигнал текущего актива, с применением параметра WIN/LOSS).&lt;br /&gt;&lt;/span&gt;&lt;span style=&quot; font-size:11pt;&quot;&gt;Для того что бы использовать данный режим, пропишите в столбце режим торговли «4». В данном режиме необходимо настроить более одной строки ММ, в таком случае бот будет создавать серию сделок, с параметрами указанными в строках ММ, сделки внутри серии сделок создаются только тогда, когда закроется предыдущая сделка на текущем активе, и следующая сделка создается только при поступлении нового сигнала из мт4/мт5, на основании выполнения условий «WIN/LOSS». В данном режиме серия сделок ведется на каждой валютной паре индивидуально. Сделка внутри серии сделок может быть отменена снижением доходности по активу, в таком случае, текущую сделку которая попадает на снижение выплаты бот пропускает, и создает еще одну сделку, позже, при поступлении нового сигнала из мт4/мт5. Серия сделок завершается и возвращается к начальной строке по достижению результата или когда закончатся прописанные шаги (строки) в серии сделок ММ. Если есть открытая сделка по текущему активу, не возможно создать новую, пока не закроется текущая.&lt;br /&gt;&lt;/span&gt;&lt;br /&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Экономические новости (в разработке)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
          </widget>
         </item>

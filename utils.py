@@ -47,7 +47,6 @@ def count_expiration_type_1(candle_long_in_minutes):
         new_data = current_time.replace(minute=d, second=0, microsecond=0) + timedelta(hours=h)
 
         if new_data > data_with_limit:
-            print(new_data.strftime('%H:%M:%S'))
             return new_data.strftime('%H:%M:%S')  # Возвращаем найденный делитель
 
 
@@ -101,7 +100,7 @@ def check_weekend_overlap(end_time):
     end_day_of_week = end_time.weekday()
 
     # Проверка для пятницы-субботы-воскресенья
-    if end_day_of_week in [4, 5, 6]:
+    if end_day_of_week in [5, 6]:
         return True
 
     return False
@@ -122,7 +121,6 @@ def check_availability_time_range(serial_start_points: List[timedelta]):
 
         # Проверка на выходные только для пятницы, субботы и воскресенья
         if check_weekend_overlap(point_time):
-            print("Текущее время входит в интервал выходных.")
             return False, "weekend"
 
         # Проверяем конец серии
@@ -133,14 +131,11 @@ def check_availability_time_range(serial_start_points: List[timedelta]):
             ]
             logging.debug(f"last_time_point: {point_time}")
             if is_time_interval_in_schedule(point_time, time_intervals_end, next_day):
-                print("Текущее время входит в расписание.")
                 return False, "low"
         else:
             if is_time_interval_in_schedule(point_time, time_intervals, next_day):
-                print("Текущее время входит в расписание.")
                 return False, "low"
 
-    print("Текущее время не входит в расписание или в интервал выходных.")
     return True, ""
 
 

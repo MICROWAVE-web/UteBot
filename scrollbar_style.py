@@ -2,13 +2,13 @@ scrollbarstyle = '''
 /* ===================== QScrollBar ======================= */
 QScrollBar:vertical {
     background: #1a1a4f;
-    width: 15px;
-    margin: 0px 3px 0px 3px;    
-    border: 1px transparent #2A2929;
+    width: 10px;
+    margin: 0px 0px 0px 0px;    
+    border: 0px transparent #2A2929;
     border-radius: 4px;
 }
 QScrollBar::handle:vertical {
-    background-color: #16164e;                    
+    background-color: #28368a;                    
     min-height: 5px;
     border-radius: 4px;
     border-image: url(icons/scroll.png) 0 0 0 0;      /* <---- установите свое изображение */ 
@@ -32,12 +32,12 @@ QScrollBar::add-line:vertical {
 QScrollBar:horizontal {
     background: #1a1a4f;
     height: 10px;
-    margin: 0px 3px 0px 3px;    
+    margin: 0px 0px 0px 0px;    
     border: 1px transparent #2A2929;
     border-radius: 4px;
 }
 QScrollBar::handle:horizontal {
-    background-color: #16164e;                    
+    background-color: #28368a;                    
     min-height: 5px;
     border-radius: 4px;
     border-image: url(icons/scroll.png) 0 0 0 0;      /* <---- установите свое изображение */ 

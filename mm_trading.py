@@ -13,7 +13,7 @@ from websocket import WebSocketApp, WebSocketConnectionClosedException
 from loggingfile import logging
 from mm_types import TYPE_ACCOUNT
 from programm_files import load_money_management_data
-from utils import get_expiration, check_availability_time_range, add_option_to_statistic
+from utils import get_expiration, check_availability_time_range
 
 
 def exeptions_determniant(err):
@@ -98,7 +98,11 @@ class OptionSeries:
         }
         # Сохраненные mt4 сигналы
         self.MT4_SIGNALS = {
-            "type_4": {}
+            "type_0": {},
+            "type_1": {},
+            "type_2": {},
+            "type_3": {},
+            "type_4": {},
         }
 
         # Очистка при смене режима
@@ -131,11 +135,11 @@ class OptionSeries:
             self.window.log_message(text)
             logging.debug(text)
             return
-
-        elif self.window.selected_mm_mode in [2, 3]:
-            # В скоре будет открыт опцион с режимом 2. В этом режиме запрещён прием сигналов по текущей валютной паре
-            # до окончания текущей серии опционов
-            self.block_mt_pairs.add(mt4_pair)
+        elif self.window.selected_mm_mode == 4 and mt4_pair in self.block_mt_pairs:
+            text = f"{mt4_pair} сделка не открыта, есть открытый опцион по {mt4_pair}"
+            self.window.log_message(text)
+            logging.debug(text)
+            return
 
         deal_index = 0
 
@@ -152,51 +156,74 @@ class OptionSeries:
                 self.COUNTERS["type_1"][mt4_pair] = 0
                 deal_index = 0
 
-
-        # Инициализация новой серии по режиму 2 для новой пары
+        # Инициализация новой серии по режиму 2 для пары
         elif self.window.selected_mm_mode == 2:
             self.MT4_SIGNALS["type_2"][mt4_pair] = [mt4_pair, mt4_direct]
             self.COUNTERS["type_2"][mt4_pair] = 0
             deal_index = 0
 
+        # По новому сигналу любого актива
         elif self.window.selected_mm_mode == 3:
             self.MT4_SIGNALS["type_3"][mt4_pair] = [mt4_pair, mt4_direct]
             deal_index = self.COUNTERS["type_3"]
 
+        # По новому сигналу одно актива (парралельно)
+        elif self.window.selected_mm_mode == 4:
+            self.MT4_SIGNALS["type_4"][mt4_pair] = [mt4_pair, mt4_direct]
+            if not self.COUNTERS["type_4"].get(mt4_pair):
+                self.COUNTERS["type_4"][mt4_pair] = 0
+            else:
+                deal_index = self.COUNTERS["type_4"][mt4_pair]
+
+        elif self.window.selected_mm_mode == 0:
+            self.MT4_SIGNALS["type_0"][mt4_pair] = [mt4_pair, mt4_direct]
+
         self.process_option(mt4_pair=mt4_pair, mt4_direct=mt4_direct, new_serial=True, counter=deal_index)
 
     def process_option(self, mt4_pair, mt4_direct, new_serial=False, counter=0, ):
+
+        logging.debug(f"{self.deal_series=}")
         self.reconnect()
 
-        # Проверка на интервалы сниженной выплаты
+        # Получение текущей сделки
+        current_deal = self.deal_series[counter]
+        logging.debug(f"{current_deal=}")
+
         if new_serial:
             serial_start_points = []
             serial_time_long = timedelta()
             serial_start_points.append(serial_time_long)
-            for deal in self.deal_series:
-                expiration_data = get_expiration(deal)
+
+            # Проверка на интервалы сниженной выплаты только для режима 2 всей серии наперед
+            if self.window.selected_mm_mode == 2:
+                for deal in self.deal_series:
+                    expiration_data = get_expiration(deal)
+                    serial_time_long += expiration_data["time_delta"]
+                    serial_start_points.append(serial_time_long)
+
+            # Проверка на интервалы сниженной выплаты только для режима 1, 3, 4 в момент текущей сделки
+            elif self.window.selected_mm_mode in [0, 1, 3, 4]:
+                expiration_data = get_expiration(current_deal)
                 serial_time_long += expiration_data["time_delta"]
                 serial_start_points.append(serial_time_long)
 
             chkup, reason = check_availability_time_range(serial_start_points)
             if not chkup and reason == "weekend":
                 self.window.log_message(
-                    f"Серия опционов пересекается с выходных днём. "
-                    f"Открытие опциона ({mt4_pair}:{mt4_direct}) остановлено.")
+                    f"{'Серия опционов' if self.window.selected_mm_mode == 2 else 'Опцион'} пересекается "
+                    f"с выходных днём. "
+                    f" Открытие опциона ({mt4_pair}:{mt4_direct}) остановлено.")
                 return
             elif not chkup and reason == "low":
                 self.window.log_message(
-                    f"Серия опционов пересекается с расписанием снижения выплат. "
+                    f"{'Серия опционов' if self.window.selected_mm_mode == 2 else 'Опцион'} пересекается "
+                    f"с расписанием снижения выплат. "
                     f"Открытие опциона ({mt4_pair}:{mt4_direct}) остановлено.")
                 return
 
-        # Получение текущей сделки
-        deal = self.deal_series[counter]
-        logging.debug(f"{deal=}")
-
         # Проверка стоп тейк
-        take_profit = deal['take_profit']
-        stop_loss = deal['stop_loss']
+        take_profit = current_deal['take_profit']
+        stop_loss = current_deal['stop_loss']
         account_balance = self.get_balance(account_type=self.account_type)
 
         logging.debug(f"{take_profit=}")
@@ -219,10 +246,10 @@ class OptionSeries:
             return
 
         # Проверка investment
-        if "%" in deal["investment"]:
-            investment = round(account_balance * float(deal["investment"].replace("%", "")) / 100.0, 1)
+        if "%" in current_deal["investment"]:
+            investment = round(account_balance * float(current_deal["investment"].replace("%", "")) / 100.0, 1)
         else:
-            investment = round(float(deal["investment"]), 1)
+            investment = round(float(current_deal["investment"]), 1)
 
         # Проверка суммы сделки (Счёт доллар - мин 0.1 макс 2,000 \ Счёт рубль - мин 20 макс 200,000)
         logging.debug(f"{investment=}")
@@ -240,7 +267,7 @@ class OptionSeries:
             return
 
         # Обработка экспирации
-        expiration_data = get_expiration(deal)
+        expiration_data = get_expiration(current_deal)
         deal_time = expiration_data["deal_time"]
         w_type_exp = expiration_data["w_type_exp"]
 
@@ -248,28 +275,29 @@ class OptionSeries:
         logging.debug(f"{self.pair_list=}")
         self.window.log_message(f"Открытие опциона... ({mt4_pair}:{mt4_direct})")
         if mt4_pair in self.pair_list['pair_list']:
-            if int(self.pair_list['pair_list'][mt4_pair]['percent']) >= int(deal["filter_payment"].replace("%", "")):
 
-                response = self.open_option(pair_name=mt4_pair, up_dn=mt4_direct.lower(),
-                                            sum_option=deal["investment"],
-                                            type_account=self.account_type, time_h=deal_time[0],
-                                            time_m=deal_time[1],
-                                            time_s=deal_time[2], percent_par=0, w_type_exp=w_type_exp)
-                logging.debug(f"OPTION OPENED: {response}")
+            response = self.open_option(pair_name=mt4_pair, up_dn=mt4_direct.lower(),
+                                        sum_option=current_deal["investment"],
+                                        type_account=self.account_type, time_h=deal_time[0],
+                                        time_m=deal_time[1],
+                                        time_s=deal_time[2], percent_par=0, w_type_exp=w_type_exp)
+            logging.debug(f"OPTION OPENED: {response}")
 
-            else:
-                self.window.log_message(
-                    f"Less than pay filter ({int(self.pair_list['pair_list'][mt4_pair]['percent'])}%)")
-                logging.info(f"Less than pay filter ({int(self.pair_list['pair_list'][mt4_pair]['percent'])}%)")
         else:
-            self.window.log_message(f"{mt4_pair} not exist")
-            logging.warning(f"{mt4_pair} not exist")
+            text = f"Пары {mt4_pair} не существует"
+            self.window.log_message(text)
+            logging.warning(text)
+
+        if self.window.selected_mm_mode in [2, 3, 4]:
+            # В скоре будет открыт опцион с режимом 2. В этом режиме запрещён прием сигналов по текущей валютной паре
+            # до окончания текущей серии опционов
+            self.block_mt_pairs.add(mt4_pair)
 
         # Уведомление
         self.window.log_message(
             f'Опцион открыт. Пара: {mt4_pair}, Направление: {mt4_direct}, '
-            f'Инвестиция: {deal["investment"]}, '
-            f'Экспирация: {deal["expiration"]} (Тип {w_type_exp}), Строка {counter + 1}.'
+            f'Инвестиция: {current_deal["investment"]}, '
+            f'Экспирация: {current_deal["expiration"]} (Тип {w_type_exp}), Строка {counter + 1}.'
             if "Deal open" in str(self.serv_answ[(-1)]) else str(self.serv_answ[(-1)]))
         logging.info('Option open')
 
@@ -280,6 +308,8 @@ class OptionSeries:
             self.COUNTERS["type_2"][mt4_pair] += 1
         elif self.window.selected_mm_mode == 3:
             self.COUNTERS["type_3"] += 1
+        elif self.window.selected_mm_mode == 4:
+            self.COUNTERS["type_4"][mt4_pair] += 1
 
     def option_finished(self, option_data):
         option_symbol = str(option_data["info_finish_option"][0]["symbol"])
@@ -289,15 +319,23 @@ class OptionSeries:
         self.update_mm_data()
 
         if self.window.selected_mm_mode == 1:
+            mt4_pair, mt4_direct = self.MT4_SIGNALS["type_0"][option_symbol]
+            # Сохраняем в статистику
+            additional_data = {
+                "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
+                "account_type": self.account_type,
+            }
+            # # add_option_to_statistic(option_data, additional_data)
+
+        if self.window.selected_mm_mode == 1 and self.MT4_SIGNALS["type_1"].get(option_symbol):
             mt4_pair, mt4_direct = self.MT4_SIGNALS["type_1"][option_symbol]
 
             # Сохраняем в статистику
             additional_data = {
-                "trade_type": mt4_direct,
                 "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
                 "account_type": self.account_type,
             }
-            add_option_to_statistic(option_data, additional_data)
+            # # add_option_to_statistic(option_data, additional_data)
 
         if self.window.selected_mm_mode == 2 and self.MT4_SIGNALS["type_2"].get(option_symbol):
 
@@ -312,22 +350,19 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "trade_type": mt4_direct,
                 "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
                 "account_type": self.account_type,
             }
-            add_option_to_statistic(option_data, additional_data)
+            # add_option_to_statistic(option_data, additional_data)
 
             if self.COUNTERS["type_2"][option_symbol] >= len(self.deal_series):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
                 self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
-                # Обнуления счетчика режима 4 по этой паре
-                self.COUNTERS["type_2"][option_symbol] = 0
                 return
 
             if (option_data["info_finish_option"][0]["finish_current_result"].lower() != "=") and (
                     option_data["info_finish_option"][0]["finish_current_result"].lower() !=
-                    self.deal_series[self.COUNTERS["type_2"][option_symbol] + 1]["result_type"].lower()):
+                    self.deal_series[self.COUNTERS["type_2"][option_symbol]]["result_type"].lower()):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
                 self.window.log_message(
                     f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
@@ -336,12 +371,12 @@ class OptionSeries:
             self.process_option(new_serial=False, counter=self.COUNTERS["type_2"][option_symbol], mt4_pair=mt4_pair,
                                 mt4_direct=mt4_direct)
 
-        if self.window.selected_mm_mode == 3:
+        if self.window.selected_mm_mode == 3 and self.MT4_SIGNALS["type_3"].get(option_symbol):
 
             # убираем пару завершенного опциона из заблокированных
             if option_symbol not in self.block_mt_pairs:
                 logging.error(
-                    f"Не найдена пара 'f{option_symbol}' в  block_mt_pairs: {self.block_mt_pairs}")
+                    f"Не найдена пара '{option_symbol}' в  block_mt_pairs: {self.block_mt_pairs}")
             else:
                 self.block_mt_pairs.remove(option_symbol)
 
@@ -349,25 +384,59 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "trade_type": mt4_direct,
                 "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
                 "account_type": self.account_type,
             }
-            add_option_to_statistic(option_data, additional_data)
+            # add_option_to_statistic(option_data, additional_data)
 
             if self.COUNTERS["type_3"] >= len(self.deal_series):
-                logging.debug(f"Серия опционов завершена (конец таблицы)")
-                self.window.log_message(f"Серия опционов завершена (конец таблицы)")
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
+                self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
                 # Обнуления счетчика режима 4 по этой паре
                 self.COUNTERS["type_3"] = 0
                 return
 
             if (option_data["info_finish_option"][0]["finish_current_result"].lower() != "=") and (
                     option_data["info_finish_option"][0]["finish_current_result"].lower() !=
-                    self.deal_series[self.COUNTERS["type_3"] + 1]["result_type"].lower()):
+                    self.deal_series[self.COUNTERS["type_3"]]["result_type"].lower()):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
                 self.window.log_message(
                     f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
+                self.COUNTERS["type_3"] = 0
+                return
+
+        if self.window.selected_mm_mode == 4 and self.MT4_SIGNALS["type_4"].get(option_symbol):
+
+            # убираем пару завершенного опциона из заблокированных
+            if option_symbol not in self.block_mt_pairs:
+                logging.error(
+                    f"Не найдена пара '{option_symbol}' в  block_mt_pairs: {self.block_mt_pairs}")
+            else:
+                self.block_mt_pairs.remove(option_symbol)
+
+            mt4_pair, mt4_direct = self.MT4_SIGNALS["type_4"][option_symbol]
+
+            # Сохраняем в статистику
+            additional_data = {
+                "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
+                "account_type": self.account_type,
+            }
+            # add_option_to_statistic(option_data, additional_data)
+
+            if self.COUNTERS["type_4"][mt4_pair] >= len(self.deal_series):
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
+                self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
+                # Обнуления счетчика режима 4 по этой паре
+                self.COUNTERS["type_4"][mt4_pair] = 0
+                return
+
+            if (option_data["info_finish_option"][0]["finish_current_result"].lower() != "=") and (
+                    option_data["info_finish_option"][0]["finish_current_result"].lower() !=
+                    self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["result_type"].lower()):
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
+                self.window.log_message(
+                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
+                self.COUNTERS["type_4"][mt4_pair] = 0
                 return
 
     # ______ UTEBOT: ______
@@ -497,7 +566,8 @@ class OptionSeries:
 
     def ping_serv(self):
         while not self.stop_event.is_set():
-            pprint(self.COUNTERS)
+            if hasattr(self, 'COUNTERS'):
+                pprint(self.COUNTERS)
             try:
                 self.ws.send("ping_us")
             except Exception as e:
