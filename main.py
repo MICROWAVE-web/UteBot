@@ -153,7 +153,26 @@ class FlaskThread(QThread):
     data_received = pyqtSignal(dict)
 
     def run(self):
-        app.run(port=80, use_reloader=False, debug=False)
+        try:
+            auth_data = load_auth_data()
+            if auth_data.get("mt4_url"):
+                splitted_auth_data = auth_data.get("mt4_url").strip().replace("https://", "").replace("http://", "").split(
+                    ':')
+                if len(splitted_auth_data) == 2:
+                    host, port = splitted_auth_data
+                    port = int(port)
+                else:
+                    host = splitted_auth_data[0]
+                    port = 80
+            else:
+                auth_data["mt4_url"] = "http://127.0.0.1:80"
+                save_auth_data(auth_data)
+                host = "127.0.0.1"
+                port = 80
+        except Exception:
+            traceback.print_exc()
+        print(host, port)
+        app.run(host=host, port=port, use_reloader=False, debug=False)
 
     def send_data_to_qt(self, data):
         self.data_received.emit(data)
@@ -238,6 +257,7 @@ class MainWindow(QMainWindow):
             self.urlEdit.setText(auth_data['url'])
             self.type_account.setCurrentText(auth_data['selected_type_account'])
             self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
+            self.mt4Url.setText(auth_data.get("mt4_url", "http://127.0.0.1"))
             # self.log_message('Данные последней успешной авторизации установлены.')
 
         # Сохранение таблицы, без уведомления, если успешно
@@ -348,9 +368,10 @@ class MainWindow(QMainWindow):
         url = self.urlEdit.text()
         auth_data = {
             "selected_type_account": self.type_account.currentText(),
-            "token": self.token_edit.text(),
-            "user_id": self.userid_edit.text(),
-            "url": self.urlEdit.text()
+            "token": self.token_edit.text().strip(),
+            "user_id": self.userid_edit.text().strip(),
+            "url": self.urlEdit.text().strip(),
+            "mt4_url": self.mt4Url.text().strip()
         }
         save_auth_data(auth_data)
         verified = False
@@ -418,20 +439,30 @@ class MainWindow(QMainWindow):
                 verified1 = self.ute_connect()
                 verified2 = check_aff(self.userid_edit.text())
                 if verified1 or verified2:
+                    auth_data = {
+                        "selected_type_account": self.type_account.currentText(),
+                        "token": self.token_edit.text().strip(),
+                        "user_id": self.userid_edit.text().strip(),
+                        "url": self.urlEdit.text().strip(),
+                        "mt4_url": self.mt4Url.text().strip()
+                    }
+                    self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
+                    save_auth_data(auth_data)
+
                     if self.bot:
                         self.connect_to_server()
                     self.is_connected = True
                     self.pushButton.setEnabled(False)
-
-                    auth_data = {
-                        "selected_type_account": self.type_account.currentText(),
-                        "token": self.token_edit.text(),
-                        "user_id": self.userid_edit.text(),
-                        "url": self.urlEdit.text()
-
+                    self.pushButton.setStyleSheet("""
+                    QPushButton{
+                        background-color: #192142;
+                        border-radius: 0px; 
+                        color: #8996c7;
+                        border-radius: 5px;
+                        padding: 8px;
+                        font-size: 12px;
                     }
-                    self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
-                    save_auth_data(auth_data)
+                    """)
                     # self.log_message('Данные последней успешной авторизации сохранены.')
 
 

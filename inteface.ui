@@ -95,7 +95,7 @@ margin-bottom: 50px;
                     </string>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="tab_authorization">
        <property name="sizePolicy">
@@ -111,53 +111,7 @@ margin-bottom: 50px;
         <property name="spacing">
          <number>15</number>
         </property>
-        <item row="0" column="0">
-         <widget class="QLineEdit" name="urlEdit">
-          <property name="maximumSize">
-           <size>
-            <width>500</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-
-                                border-radius: 5px;
-                                padding: 8px;
-                                font-size: 12px;
-                            </string>
-          </property>
-          <property name="placeholderText">
-           <string>URL</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QLineEdit" name="userid_edit">
-          <property name="maximumSize">
-           <size>
-            <width>500</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-
-                                border-radius: 5px;
-                                padding: 8px;
-                                font-size: 12px;
-                            </string>
-          </property>
-          <property name="placeholderText">
-           <string>UserId</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="0">
+        <item row="4" column="0">
          <widget class="QComboBox" name="type_account">
           <property name="styleSheet">
            <string notr="true">#type_account{
@@ -223,52 +177,74 @@ margin-bottom: 50px;
           </item>
          </widget>
         </item>
-        <item row="4" column="0">
-         <widget class="QPushButton" name="pushButton">
-          <property name="cursor">
-           <cursorShape>PointingHandCursor</cursorShape>
+        <item row="2" column="0">
+         <widget class="QLineEdit" name="userid_edit">
+          <property name="maximumSize">
+           <size>
+            <width>500</width>
+            <height>16777215</height>
+           </size>
           </property>
           <property name="styleSheet">
-           <string notr="true">QPushButton {
+           <string notr="true">
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+
+                                border-radius: 5px;
+                                padding: 8px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="placeholderText">
+           <string>UserId</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLineEdit" name="token_edit">
+          <property name="maximumSize">
+           <size>
+            <width>500</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
                                 background-color: rgb(18, 26, 61);
                                 color: white;
                                 border-radius: 5px;
                                 padding: 8px;
                                 font-size: 12px;
-                                }
-                                QPushButton::hover {
-                                cursor: pointer;
-                                }
                             </string>
           </property>
-          <property name="text">
-           <string>Запустить</string>
+          <property name="placeholderText">
+           <string>Token</string>
           </property>
          </widget>
         </item>
-        <item row="0" column="1" rowspan="8">
-         <widget class="QTextBrowser" name="textBrowser">
+        <item row="6" column="0">
+         <widget class="QTimeEdit" name="timeEdit">
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>0</height>
+           </size>
+          </property>
           <property name="styleSheet">
-           <string notr="true">QTextBrowser {
+           <string notr="true">
                                 background-color: rgb(18, 26, 61);
                                 color: white;
                                 border-radius: 5px;
                                 padding: 5px;
                                 font-size: 12px;
-}
-
-QScrollBar:vertical, QScrollBar:horizontal {
-    background: none;         /* Убираем все фоны, включая текстуры */
-	width: 0px;
-}
-</string>
+                            </string>
           </property>
-          <property name="placeholderText">
-           <string>Здесь будут появляться логи.</string>
+          <property name="displayFormat">
+           <string>hh:mm:ss</string>
           </property>
          </widget>
         </item>
-        <item row="6" column="0">
+        <item row="7" column="0">
          <widget class="QSpinBox" name="spinBox">
           <property name="maximumSize">
            <size>
@@ -291,29 +267,30 @@ QScrollBar:vertical, QScrollBar:horizontal {
          </widget>
         </item>
         <item row="5" column="0">
-         <widget class="QTimeEdit" name="timeEdit">
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>0</height>
-           </size>
+         <widget class="QPushButton" name="pushButton">
+          <property name="cursor">
+           <cursorShape>PointingHandCursor</cursorShape>
           </property>
           <property name="styleSheet">
-           <string notr="true">
+           <string notr="true">QPushButton {
                                 background-color: rgb(18, 26, 61);
                                 color: white;
                                 border-radius: 5px;
-                                padding: 5px;
+                                padding: 8px;
                                 font-size: 12px;
+                                }
+                                QPushButton::hover {
+                                cursor: pointer;
+                                }
                             </string>
           </property>
-          <property name="displayFormat">
-           <string>hh:mm:ss</string>
+          <property name="text">
+           <string>Запустить</string>
           </property>
          </widget>
         </item>
-        <item row="2" column="0">
-         <widget class="QLineEdit" name="token_edit">
+        <item row="0" column="0">
+         <widget class="QLineEdit" name="urlEdit">
           <property name="maximumSize">
            <size>
             <width>500</width>
@@ -324,13 +301,62 @@ QScrollBar:vertical, QScrollBar:horizontal {
            <string notr="true">
                                 background-color: rgb(18, 26, 61);
                                 color: white;
+
                                 border-radius: 5px;
                                 padding: 8px;
                                 font-size: 12px;
                             </string>
           </property>
           <property name="placeholderText">
-           <string>Token</string>
+           <string>UTE URL</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1" rowspan="9">
+         <widget class="QTextBrowser" name="textBrowser">
+          <property name="styleSheet">
+           <string notr="true">QTextBrowser {
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 5px;
+                                font-size: 12px;
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: none;         /* Убираем все фоны, включая текстуры */
+	width: 0px;
+}
+</string>
+          </property>
+          <property name="placeholderText">
+           <string>Здесь будут появляться логи.</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLineEdit" name="mt4Url">
+          <property name="maximumSize">
+           <size>
+            <width>500</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+
+                                border-radius: 5px;
+                                padding: 8px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="placeholderText">
+           <string>MT4 URL</string>
           </property>
          </widget>
         </item>
