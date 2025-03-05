@@ -645,7 +645,6 @@ class MainWindow(QMainWindow):
                 header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
 
         data = load_money_management_data()
-        print(data)
 
         for key, item in data.items():
             try:
@@ -661,10 +660,6 @@ class MainWindow(QMainWindow):
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
                mm_type_val=MM_MODES[1],
                profit_val="100000", stop_val="100", result_val='WIN', skip_check=False):
-        if self.haveUnsavedRows and not skip_check:
-            QMessageBox.warning(self, "Ошибка",
-                                "У вас есть не сохранённые позиции. Сохраните, прежде чем добавлять новые.")
-            return
         try:
             rowCount = self.manage_table.rowCount()
             self.manage_table.insertRow(rowCount)
@@ -1012,7 +1007,7 @@ class MainWindow(QMainWindow):
             self.manage_table.removeRow(row_count - 1)
 
         # Сохраняем данные после изменения
-        self.saveData()
+        self.saveData(nide_notification=True)
 
     def update_mm_table(self, text):
         # Когда значение в одном из комбобоксов изменится, обновляем все строки в этом столбце
