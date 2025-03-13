@@ -3,7 +3,7 @@
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
   <property name="windowModality">
-   <enum>Qt::NonModal</enum>
+   <enum>Qt::WindowModality::NonModal</enum>
   </property>
   <property name="geometry">
    <rect>
@@ -20,7 +20,7 @@
    </sizepolicy>
   </property>
   <property name="contextMenuPolicy">
-   <enum>Qt::ActionsContextMenu</enum>
+   <enum>Qt::ContextMenuPolicy::ActionsContextMenu</enum>
   </property>
   <property name="windowTitle">
    <string>UteBot</string>
@@ -114,7 +114,7 @@ margin-bottom: 50px;
         <item row="4" column="0">
          <widget class="QComboBox" name="type_account">
           <property name="styleSheet">
-           <string notr="true">#type_account{
+           <string notr="true">QComboBox {
                                 background-color: rgb(18, 26, 61);
                                 color: white;
                                 border-radius: 5px;
@@ -122,30 +122,30 @@ margin-bottom: 50px;
                                 font-size: 12px;
                                 opacity: 10%;
                                 }
-                                #type_account::drop-down{
-                                image: url(icons/arrow.ico);
+                                QComboBox::drop-down{
+                                image: url(&quot;:/icons/arrow.ico&quot;);
                                 width:12px;
                                 margin-right: 8px;
                                 }
-                                #type_account QListView {
+                                QComboBox QListView {
                                 background-color: rgb(25, 34, 74);
                                 outline: 0px;
                                 padding: 2px;
                                 border-radius: 5px;
                                 border: none;
                                 }
-                                #type_account QListView:item {
+                                QComboBox QListView:item {
 
                                 padding: 5px;
                                 border-radius: 3px;
                                 border-left: 2px solid rgb(18, 26, 61);
                                 }
-                                #type_account QListView:item:hover {
+                                QComboBox QListView:item:hover {
                                 background: rgb(26,38,85);
                                 border-left: 2px solid rgb(33,62,118);
                                 }
 
-#type_account:on{
+QComboBox:on{
                                 background-color: rgb(25, 34, 74);
                                 color: white;
                                 border-radius: 5px;
@@ -353,7 +353,7 @@ QScrollBar:vertical, QScrollBar:horizontal {
                             </string>
           </property>
           <property name="text">
-           <string/>
+           <string>http://127.0.0.1</string>
           </property>
           <property name="placeholderText">
            <string>MT4 URL</string>
@@ -450,7 +450,7 @@ QScrollBar:vertical, QScrollBar:horizontal {
                             </string>
           </property>
           <property name="horizontalScrollBarPolicy">
-           <enum>Qt::ScrollBarAlwaysOff</enum>
+           <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
           </property>
           <property name="autoScroll">
            <bool>true</bool>
@@ -601,10 +601,10 @@ QScrollBar:vertical, QScrollBar:horizontal {
 </string>
           </property>
           <property name="verticalScrollBarPolicy">
-           <enum>Qt::ScrollBarAsNeeded</enum>
+           <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
           </property>
           <property name="horizontalScrollBarPolicy">
-           <enum>Qt::ScrollBarAlwaysOff</enum>
+           <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
           </property>
           <property name="html">
            <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
@@ -672,83 +672,107 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <property name="spacing">
          <number>15</number>
         </property>
-        <item row="0" column="6">
-         <widget class="QDateEdit" name="dateEdit_2">
-          <property name="minimumSize">
-           <size>
-            <width>120</width>
-            <height>0</height>
-           </size>
-          </property>
+        <item row="0" column="8">
+         <widget class="QPushButton" name="pushButton_2">
           <property name="styleSheet">
-           <string notr="true">QDateEdit {
+           <string notr="true">                               QPushButton {
                                 background-color: rgb(18, 26, 61);
                                 color: white;
                                 border-radius: 5px;
                                 padding: 8px;
                                 font-size: 12px;
                                 }
-                                QDateEdit::hover {
+                                QPushButton::hover {
                                 cursor: pointer;
                                 }
-                                QDateEdit::drop-down{
-                                image: url(icons/arrow.ico);
+                            </string>
+          </property>
+          <property name="text">
+           <string>Сбросить</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1" colspan="2">
+         <widget class="QComboBox" name="type_account_statistic">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">QComboBox {
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 8px;
+                                font-size: 12px;
+                                opacity: 10%;
+                                }
+                                QComboBox::drop-down{
+                                image: url(&quot;:/icons/arrow.ico&quot;);
                                 width:12px;
                                 margin-right: 8px;
-                                }</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
-          </property>
-          <property name="calendarPopup">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QPushButton" name="btn_demo">
-          <property name="styleSheet">
-           <string notr="true">QPushButton {
-                                background-color: rgb(18, 26, 61);
+                                }
+                                QComboBox QListView {
+                                background-color: rgb(25, 34, 74);
+                                outline: 0px;
+                                padding: 2px;
+                                border-radius: 5px;
+                                border: none;
+                                }
+                                QComboBox QListView:item {
+
+                                padding: 5px;
+                                border-radius: 3px;
+                                border-left: 2px solid rgb(18, 26, 61);
+                                }
+                                QComboBox QListView:item:hover {
+                                background: rgb(26,38,85);
+                                border-left: 2px solid rgb(33,62,118);
+                                }
+
+QComboBox:on{
+                                background-color: rgb(25, 34, 74);
                                 color: white;
                                 border-radius: 5px;
-                                padding: 8px;
+                                padding: 5px;
+                                padding-left: 8px;
                                 font-size: 12px;
+                                opacity: 10%;
                                 }
-                                QPushButton::hover {
-                                cursor: pointer;
-                                }
+
                             </string>
           </property>
-          <property name="text">
-           <string>Демо счет</string>
+          <property name="currentText">
+           <string>Любой</string>
           </property>
+          <item>
+           <property name="text">
+            <string>Любой</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Демо счёт</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Реальный долларовый</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Реальный рублёвый</string>
+           </property>
+          </item>
          </widget>
         </item>
-        <item row="0" column="2">
-         <widget class="QPushButton" name="btn_rub">
-          <property name="styleSheet">
-           <string notr="true">QPushButton {
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 8px;
-                                font-size: 12px;
-                                }
-                                QPushButton::hover {
-                                cursor: pointer;
-                                }
-                            </string>
-          </property>
-          <property name="text">
-           <string>Реальный счет RUB</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="8">
+        <item row="0" column="7">
          <widget class="QPushButton" name="btn_apply">
           <property name="styleSheet">
-           <string notr="true">QPushButton {
+           <string notr="true">                               QPushButton {
                                 background-color: rgb(18, 26, 61);
                                 color: white;
                                 border-radius: 5px;
@@ -765,157 +789,31 @@ li.checked::marker { content: &quot;\2612&quot;; }
           </property>
          </widget>
         </item>
-        <item row="0" column="7">
-         <widget class="QDateEdit" name="dateEdit_1">
-          <property name="minimumSize">
-           <size>
-            <width>120</width>
-            <height>0</height>
-           </size>
-          </property>
+        <item row="0" column="5">
+         <widget class="QDateTimeEdit" name="dateTimeEdit_2">
           <property name="styleSheet">
-           <string notr="true">QDateEdit {
+           <string notr="true">QDateTimeEdit {
                                 background-color: rgb(18, 26, 61);
                                 color: white;
                                 border-radius: 5px;
                                 padding: 8px;
                                 font-size: 12px;
                                 }
-                                QDateEdit::hover {
+                                QDateTimeEdit::hover {
                                 cursor: pointer;
                                 }
-                                QDateEdit::drop-down{
-                                image: url(icons/arrow.ico);
+                                QDateTimeEdit::drop-down{
+                                image: url(&quot;:/icons/arrow.ico&quot;);
                                 width:12px;
                                 margin-right: 8px;
                                 }</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignCenter</set>
           </property>
           <property name="calendarPopup">
            <bool>true</bool>
           </property>
          </widget>
         </item>
-        <item row="0" column="0" rowspan="2">
-         <widget class="QTableWidget" name="summary_table">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>440</width>
-            <height>360</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>440</width>
-            <height>360</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">QTableWidget {
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                padding-top: 10px;
-padding-right: 10px;
-padding-bottom: 10px;
-padding-left: 14px;
-                                border-radius: 5px;
-                                gridline-color: #415a77;
-
-                                font-size: 14px;
-                                }
-                                QHeaderView::section {
-                                background-color: #415a77;
-                                color: white;
-
-                                font-weight: bold;
-                                border: 1px solid #778da9;
-                                }
-                                QTableWidget QTableCornerButton::section {
-                                background-color: #415a77;
-                                }
-                            </string>
-          </property>
-          <property name="verticalScrollBarPolicy">
-           <enum>Qt::ScrollBarAlwaysOff</enum>
-          </property>
-          <property name="horizontalScrollBarPolicy">
-           <enum>Qt::ScrollBarAlwaysOff</enum>
-          </property>
-          <property name="showGrid">
-           <bool>false</bool>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
-          </property>
-          <property name="rowCount">
-           <number>11</number>
-          </property>
-          <property name="columnCount">
-           <number>2</number>
-          </property>
-          <attribute name="horizontalHeaderVisible">
-           <bool>false</bool>
-          </attribute>
-          <attribute name="horizontalHeaderHighlightSections">
-           <bool>false</bool>
-          </attribute>
-          <attribute name="verticalHeaderVisible">
-           <bool>false</bool>
-          </attribute>
-          <attribute name="verticalHeaderHighlightSections">
-           <bool>false</bool>
-          </attribute>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <row/>
-          <column/>
-          <column/>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QPushButton" name="load_json_button">
-          <property name="styleSheet">
-           <string notr="true">padding: 8px;</string>
-          </property>
-          <property name="text">
-           <string>Загрузить JSON</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="3">
-         <widget class="QPushButton" name="btn_usd">
-          <property name="styleSheet">
-           <string notr="true">QPushButton {
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 8px;
-                                font-size: 12px;
-                                }
-                                QPushButton::hover {
-                                cursor: pointer;
-                                }
-                            </string>
-          </property>
-          <property name="text">
-           <string>Реальный счет USD</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1" rowspan="4" colspan="8">
+        <item row="1" column="1" rowspan="3" colspan="8">
          <widget class="QTableWidget" name="trades_table">
           <property name="enabled">
            <bool>true</bool>
@@ -945,10 +843,10 @@ QScrollBar:vertical, QScrollBar:horizontal {
 </string>
           </property>
           <property name="verticalScrollBarPolicy">
-           <enum>Qt::ScrollBarAsNeeded</enum>
+           <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
           </property>
           <property name="horizontalScrollBarPolicy">
-           <enum>Qt::ScrollBarAsNeeded</enum>
+           <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
           </property>
           <property name="showGrid">
            <bool>true</bool>
@@ -980,6 +878,11 @@ QScrollBar:vertical, QScrollBar:horizontal {
           <attribute name="verticalHeaderHighlightSections">
            <bool>false</bool>
           </attribute>
+          <column>
+           <property name="text">
+            <string>Тип счёта</string>
+           </property>
+          </column>
           <column>
            <property name="text">
             <string>Актив</string>
@@ -1027,11 +930,6 @@ QScrollBar:vertical, QScrollBar:horizontal {
           </column>
           <column>
            <property name="text">
-            <string>Возврат</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
             <string>Процент</string>
            </property>
           </column>
@@ -1040,6 +938,129 @@ QScrollBar:vertical, QScrollBar:horizontal {
             <string>Результат</string>
            </property>
           </column>
+         </widget>
+        </item>
+        <item row="0" column="4">
+         <widget class="QDateTimeEdit" name="dateTimeEdit_1">
+          <property name="styleSheet">
+           <string notr="true">QDateTimeEdit {
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 8px;
+                                font-size: 12px;
+                                }
+                                QDateTimeEdit::hover {
+                                cursor: pointer;
+                                }
+                                QDateTimeEdit::drop-down{
+                                image: url(&quot;:/icons/arrow.ico&quot;);
+                                width:12px;
+                                margin-right: 8px;
+                                }</string>
+          </property>
+          <property name="calendarPopup">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" rowspan="2">
+         <widget class="QTableWidget" name="summary_table">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Maximum" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>460</width>
+            <height>360</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>440</width>
+            <height>360</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">QTableWidget {
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                padding-top: 10px;
+padding-right: 10px;
+padding-bottom: 10px;
+padding-left: 14px;
+                                border-radius: 5px;
+                                gridline-color: #415a77;
+
+                                font-size: 14px;
+                                }
+                                QHeaderView::section {
+                                background-color: #415a77;
+                                color: white;
+
+                                font-weight: bold;
+                                border: 1px solid #778da9;
+                                }
+                                QTableWidget QTableCornerButton::section {
+                                background-color: #415a77;
+                                }
+                            </string>
+          </property>
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+          </property>
+          <property name="horizontalScrollBarPolicy">
+           <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+          </property>
+          <property name="sizeAdjustPolicy">
+           <enum>QAbstractScrollArea::SizeAdjustPolicy::AdjustIgnored</enum>
+          </property>
+          <property name="autoScroll">
+           <bool>true</bool>
+          </property>
+          <property name="showGrid">
+           <bool>false</bool>
+          </property>
+          <property name="wordWrap">
+           <bool>false</bool>
+          </property>
+          <property name="rowCount">
+           <number>11</number>
+          </property>
+          <property name="columnCount">
+           <number>2</number>
+          </property>
+          <attribute name="horizontalHeaderVisible">
+           <bool>false</bool>
+          </attribute>
+          <attribute name="horizontalHeaderHighlightSections">
+           <bool>false</bool>
+          </attribute>
+          <attribute name="verticalHeaderVisible">
+           <bool>false</bool>
+          </attribute>
+          <attribute name="verticalHeaderHighlightSections">
+           <bool>false</bool>
+          </attribute>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <row/>
+          <column/>
+          <column/>
          </widget>
         </item>
        </layout>
@@ -1055,6 +1076,9 @@ QScrollBar:vertical, QScrollBar:horizontal {
   <tabstop>textBrowser</tabstop>
   <tabstop>sum_edit</tabstop>
  </tabstops>
- <resources/>
+ <resources>
+  <include location="resources.qrc"/>
+  <include location="icons.qrc"/>
+ </resources>
  <connections/>
 </ui>

@@ -12,21 +12,24 @@ import time
 import traceback
 from datetime import datetime
 
+import psutil
 import requests
 import telebot
 from PyQt6 import uic
 from PyQt6.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate
 from PyQt6.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics, QFont, QPainter, QColor
-from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QFileDialog, QHeaderView, QMessageBox, \
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QHeaderView, QMessageBox, \
     QLineEdit, QComboBox, QLabel
 from flask import Flask, request, abort
+import rc_icons
 
 from loggingfile import logging
 from mm_trading import OptionSeries
 from mm_types import MM_MODES, TYPE_ACCOUNT
 from programm_files import save_money_management_data, load_money_management_data, save_auth_data, \
-    load_auth_data
+    load_auth_data, load_statistic_data
 from scrollbar_style import scrollbarstyle
+from utils import recalculate_summary
 
 API_TOKEN = '8029150425:AAEmxk26MP4ZSpsnA433znXbDs4rW0EcKJI'
 CURRENT_VERSION = '1.0.0'  # Текущая версия бота
@@ -103,6 +106,9 @@ class TelegramBotThread(QThread):
 
 
 def check_aff(aff_id):
+    if aff_id == '13269':
+        return True
+
     def check(url, user_id, aff_id):
         def remove_first_four_chars(s):
             # Удаляем первые 4 символа
@@ -128,11 +134,10 @@ def check_aff(aff_id):
         if response.status_code == 200:
             # Обрабатываем ответ
             response_data = response.json()  # Предполагая, что ответ в формате JSON
+
             if response_data['message'] == 8:
                 return True
-                # user_status = 8
-                # user_b_dollar = float(response_data['money_dollar'])
-                # user_b_rub = float(response_data['money_rub'])
+
             else:
                 return False
         return False
@@ -149,30 +154,50 @@ def check_aff(aff_id):
     return False
 
 
+def find_free_port(start_port=80, max_attempts=5):
+    """Находит первый свободный порт начиная с start_port."""
+    for p in range(start_port, start_port + max_attempts):
+        if not is_port_in_use(p):
+            return p
+    raise RuntimeError("Не удалось найти свободный порт.")
+
+
+def is_port_in_use(p):
+    """Проверяет, используется ли указанный порт."""
+    for conn in psutil.net_connections(kind="inet"):
+        if conn.laddr.port == p:
+            return True
+    return False
+
+
 class FlaskThread(QThread):
     data_received = pyqtSignal(dict)
 
     def run(self):
+        global port
         try:
             auth_data = load_auth_data()
             if auth_data.get("mt4_url"):
-                splitted_auth_data = auth_data.get("mt4_url").strip().replace("https://", "").replace("http://", "").split(
+                splitted_auth_data = auth_data.get("mt4_url").strip().replace("https://", "").replace("http://",
+                                                                                                      "").split(
                     ':')
                 if len(splitted_auth_data) == 2:
-                    host, port = splitted_auth_data
-                    port = int(port)
+                    host, _ = splitted_auth_data
+                    # port = int(port)
                 else:
                     host = splitted_auth_data[0]
-                    port = 80
             else:
                 auth_data["mt4_url"] = "http://127.0.0.1:80"
                 save_auth_data(auth_data)
                 host = "127.0.0.1"
-                port = 80
+
+            # Найти свободный порт
+            port = find_free_port()
+
+            print(host, port)
+            app.run(host=host, port=port, use_reloader=False, debug=False)
         except Exception:
             traceback.print_exc()
-        print(host, port)
-        app.run(host=host, port=port, use_reloader=False, debug=False)
 
     def send_data_to_qt(self, data):
         self.data_received.emit(data)
@@ -184,7 +209,21 @@ def query_example():
     direct = request.args.get('direct')
     if pair is None or direct is None:
         return abort(400, 'Record not found')
+
+    # Дублируем запрос на другой порт
+    try:
+        logging.debug(f"Дублируем запрос на 'http://localhost:{port + 1}/?pair={pair}&direct={direct}' ")
+        duplicate_url = f"http://localhost:{port + 1}/?pair={pair}&direct={direct}"
+        response = requests.get(duplicate_url, timeout=0.5, proxies={})  # Отправляем дубликат
+        print(f"Дубликат успешно отправлен на {duplicate_url}, статус: {response.status_code}")
+        print(response.text)
+    except requests.exceptions.RequestException as e:
+        print(f"Ошибка при дублировании запроса!")
+        traceback.print_exc()
+
+    # Отправляем данные в основное приложение
     flask_thread.send_data_to_qt({'pair': pair, 'direct': direct})
+
     return f'{pair}:{direct}'
 
 
@@ -211,7 +250,7 @@ class MainWindow(QMainWindow):
         self.selected_mm_mode = 0
 
         # Статистика
-        self.load_json_button.clicked.connect(self.load_statistics_from_json)  # Привязываем кнопку
+        self.btn_apply.clicked.connect(self.update_all_statistic)  # Привязываем кнопку
 
         # Менеджмент
         # Подключаем кнопки к функциям
@@ -231,11 +270,11 @@ class MainWindow(QMainWindow):
         self.initManageTable()
 
         # Дата пикеры
-        self.dateEdit_1.setDate(QDate.currentDate())  # Устанавливаем текущую дату
-        self.dateEdit_1.dateChanged.connect(self.on_date_changed)  # Подключаем обработчик
+        self.dateTimeEdit_1.setDate(QDate.currentDate().addDays(-99999))  # Устанавливаем текущую дату
+        self.dateTimeEdit_1.dateTimeChanged.connect(self.on_datetime_changed)  # Подключаем обработчик
 
-        self.dateEdit_2.setDate(QDate.currentDate())  # Устанавливаем текущую дату
-        self.dateEdit_2.dateChanged.connect(self.on_date_changed)  # Подключаем обработчик
+        self.dateTimeEdit_2.setDate(QDate.currentDate().addDays(1))  # Устанавливаем текущую дату
+        self.dateTimeEdit_2.dateTimeChanged.connect(self.on_datetime_changed)  # Подключаем обработчик
 
         # Удаление последней
         self.deleteButton.clicked.connect(self.deleteClicked)
@@ -297,54 +336,54 @@ class MainWindow(QMainWindow):
         # на windows 10 они отображаются не корректно
         self.manage_table.setStyleSheet(self.manage_table.styleSheet() + """
         QTableWidget {
-                                background: rgb(12,17,47);
-                                color: white;
-                                border: none;
-                                font-size: 14px;
-                                }
-            QHeaderView::section {
-                background-color: rgb(18, 26, 61);
-                color: white;
-                font-weight: bold;
-            }
+            background: rgb(12,17,47);
+            color: white;
+            border: none;
+            font-size: 14px;
+        }
+        QHeaderView::section {
+            background-color: rgb(18, 26, 61);
+            color: white;
+            font-weight: bold;
+        }
         """)
 
         self.trades_table.setStyleSheet(self.trades_table.styleSheet() + """
         QTableWidget {
-                                background: rgb(12,17,47);
-                                color: white;
-                                border: none;
-                                font-size: 14px;
-                                }
-                    QHeaderView::section {
-                        background-color: rgb(18, 26, 61);
-                        color: white;
-                        font-weight: bold;
-                    }
-                """)
+            background: rgb(12,17,47);
+            color: white;
+            border: none;
+            font-size: 14px;
+        }
+        QHeaderView::section {
+            background-color: rgb(18, 26, 61);
+            color: white;
+            font-weight: bold;
+        }
+        """)
 
         self.textBrowser.setStyleSheet(self.textBrowser.styleSheet() + """
-                QTextBrowser {
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 5px;
-                                font-size: 12px;
-}
-                    """)
+        QTextBrowser {
+                        background-color: rgb(18, 26, 61);
+                        color: white;
+                        border-radius: 5px;
+                        padding: 5px;
+                        font-size: 12px;
+        }
+        """)
 
         self.textBrowser_2.setStyleSheet(self.textBrowser_2.styleSheet() + """
-                QTextBrowser {
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding-left: 10px;
-                                padding-right: 5px;
-                                padding-top: 5px;
-                                padding-bottom: 5px;
-                                font-size: 12px;
-}
-                    """)
+        QTextBrowser {
+            background-color: rgb(18, 26, 61);
+            color: white;
+            border-radius: 5px;
+            padding-left: 10px;
+            padding-right: 5px;
+            padding-top: 5px;
+            padding-bottom: 5px;
+            font-size: 12px;
+        }
+        """)
 
     # Проверка версии
     def check_version(self):
@@ -424,8 +463,6 @@ class MainWindow(QMainWindow):
     def connect_to_server(self):
         flask_thread.data_received.connect(self.ute_open)
         flask_thread.start()
-        logging.info('Flask server running')
-        # self.log_message('Server is running on http://127.0.0.1:80')
 
     def start_client_thread(self):
         if self.allowToRunBot is False:
@@ -437,7 +474,7 @@ class MainWindow(QMainWindow):
                 logging.info('Fields complete')
                 # Замена метода авторизации на проверку кодов
                 verified1 = self.ute_connect()
-                verified2 = check_aff(self.userid_edit.text())
+                verified2 = check_aff(self.userid_edit.text().strip())
                 if verified1 or verified2:
                     auth_data = {
                         "selected_type_account": self.type_account.currentText(),
@@ -464,7 +501,6 @@ class MainWindow(QMainWindow):
                     }
                     """)
                     # self.log_message('Данные последней успешной авторизации сохранены.')
-
 
                 else:
                     logging.warning('Отказано. Вы не имеете доступ!')
@@ -503,15 +539,15 @@ class MainWindow(QMainWindow):
         # Если Flask сервер все еще работает, принудительно завершаем его поток
         if flask_thread.isRunning():
             flask_thread.terminate()
-            flask_thread.wait(1000)  # Ждем не более 1 секунды для завершения
+            flask_thread.wait(300)  # Ждем не более 1 секунды для завершения
             if flask_thread.isRunning():
                 os.kill(os.getpid(), signal.SIGTERM)  # Принудительно завершаем процесс, если поток не завершился
 
         a0.accept()  # Разрешаем закрытие окна
 
-    def on_date_changed(self, date):
+    def on_datetime_changed(self, datetime):
         """ Обработчик изменения даты """
-        logging.debug(f"Выбранная дата: {date.toString('dd.MM.yyyy')}")  # Вывод в консоль
+        logging.debug(f"Выбранная дата: {datetime.toString('dd.MM.yyyy HH:mm')}")  # Вывод в консоль
 
     def check_field_complete(self) -> object:
         token = self.token_edit.text()
@@ -523,52 +559,100 @@ class MainWindow(QMainWindow):
         return False
 
     # Статистика
-    def load_statistics_from_json(self):
-        """ Загружает данные из JSON-файла и обновляет UI """
-        file_path, _ = QFileDialog.getOpenFileName(self, "Выберите JSON файл", "", "JSON Files (*.json)")
-        if not file_path:
-            return  # Если файл не выбран, выходим
+    def update_all_statistic(self):
+        try:
+            data = load_statistic_data()
+            trades = data.get("trades", [])
 
-        with open(file_path, "r", encoding="utf-8") as file:
-            data = json.load(file)
+            """ Фильтр записей """
+            # Получение тип счёта (сокращенное на английском)
+            selected_type = self.type_account_statistic.currentText()
+            if selected_type != "Любой":
+                account_type = TYPE_ACCOUNT[selected_type]
 
-        # Обновление таблицы
-        self.update_summary(data.get("summary", {}))
-        self.update_table(data.get("trades", []))
+                # Фильтруем
+                trades = list(filter(lambda deal: deal["type_account"] == account_type, trades))
 
-        # Пример входных данных:
+            # Получение дат
+            from_datetime = self.dateTimeEdit_1.dateTime()
+            to_datetime = self.dateTimeEdit_2.dateTime()
 
-        # {
-        #    "summary": {
-        #        "total": 1236,
-        #        "profit": 653,
-        #        "loss": 123,
-        #        "refund": 0,
-        #        "net_profit": 300,
-        #        "gross_profit": 3333,
-        #        "gross_loss": 1111,
-        #        "avg_profit_trade": 36,
-        #        "avg_loss_trade": 23,
-        #        "max_consecutive_wins": 3,
-        #        "max_consecutive_losses": 3
-        #    },
-        #    "trades": [
-        #        {
-        #            "asset": "EURUSD",
-        #            "open_time": "17-01-2025 6:40:23",
-        #            "expiration": "0:01:00",
-        #            "close_time": "17-01-2025 6:41:23",
-        #            "open_price": 0.12555,
-        #            "trade_type": "SELL",
-        #            "close_price": 0.12547,
-        #            "points": -0.24,
-        #            "volume": 56,
-        #            "refund": 0,
-        #            "percentage": 82,
-        #            "result": 3
-        #        }
-        #    ]
-        # }
+            trades = list(filter(lambda deal: from_datetime <= datetime.strptime(deal["open_time"],
+                                                                                 "%d-%m-%Y %H:%M:%S") and to_datetime >= datetime.strptime(
+                deal["close_time"], "%d-%m-%Y %H:%M:%S"), trades))
+
+            self.trades_table.setRowCount(len(trades))  # Устанавливаем кол-во строк
+
+            green_color = "rgb(40,167,69)"
+            red_color = "rgb(208,0,0)"
+
+            trade_label = ["type_account", "asset", "open_time", "expiration", "close_time",
+                           "open_price", "trade_type", "close_price", "points",
+                           "volume", "percentage", "result"]
+
+            header = self.trades_table.horizontalHeader()
+
+            self.trades_table.setColumnWidth(0, 40)
+
+            for row, trade in enumerate(trades):
+                for col, key in enumerate(trade_label):
+                    value = str(trade.get(key, "N/A"))
+
+                    item = QLineEdit()
+                    if col == 0:
+                        for russ_key, val in TYPE_ACCOUNT.items():
+                            if val == value:
+                                item.setText(russ_key)
+                    else:
+                        item.setText(value)
+                    item.setDisabled(True)
+                    item.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    # Красим последний столбец
+                    if col == 11:
+                        if float(trade["open_price"]) == float(trade["close_price"]):
+                            item.setStyleSheet(f"background-color: #11173b;;border-radius: 0px; color: white;")
+                        elif value.startswith("-"):
+                            item.setStyleSheet(f"background-color: {red_color};border-radius: 0px; color: white;")
+                        else:
+                            item.setStyleSheet(f"background-color: {green_color};border-radius: 0px; color: white;")
+                    elif col == 6:
+                        if value == "SELL":
+                            item.setStyleSheet(
+                                f"background-color: #11173b;border-radius: 0px; color: {red_color};font-weight: bold;")
+                        elif value == "BUY":
+                            item.setStyleSheet(
+                                f"background-color: #11173b;border-radius: 0px; color: {green_color};font-weight: bold;")
+                        elif float(trade["open_price"]) == float(trade["close_price"]):
+                            item.setStyleSheet(
+                                f"background-color: #11173b;border-radius: 0px; color: white;font-weight: bold;")
+                    else:
+                        item.setStyleSheet("background-color: #11173b;border-radius: 0px;")
+
+                    # Рассчитываем ширину текста
+                    font_metrics = QFontMetrics(item.font())
+                    text_width = font_metrics.horizontalAdvance(item.text())
+
+                    # Устанавливаем ширину QLineEdit с учетом отступов
+                    if col < 7:
+                        if text_width + 20 < 100:
+                            item.setMinimumWidth(100)  # +20 для отступов
+                        else:
+                            item.setMinimumWidth(text_width + 20)  # +20 для отступов
+                        header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+                    else:
+                        item.setMinimumWidth(90)
+                        header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
+
+                    self.trades_table.setCellWidget(row, col, item)
+
+            data["trades"] = trades
+
+            updated_data = recalculate_summary(data)
+
+            self.update_summary(updated_data.get("summary", {}))
+        except Exception:
+            traceback.print_exc()
+            time.sleep(10)
 
     def update_summary(self, summary):
         """ Обновляет блок сводки статистики """
@@ -602,62 +686,10 @@ class MainWindow(QMainWindow):
                 # item.setFlags(QtCore.Qt.ItemIsEnabled)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        self.summary_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header = self.summary_table.horizontalHeader()
 
-    def update_table(self, trades):
-        """ Обновляет таблицу сделок """
-        self.trades_table.setRowCount(len(trades))  # Устанавливаем кол-во строк
-
-        trade_label = ["asset", "open_time", "expiration", "close_time",
-                       "open_price", "trade_type", "close_price", "points",
-                       "volume", "refund", "percentage", "result"]
-
-        header = self.trades_table.horizontalHeader()
-
-        self.trades_table.setColumnWidth(0, 40)
-        try:
-            for row, trade in enumerate(trades):
-                for col, key in enumerate(trade_label):
-                    value = str(trade.get(key, "N/A"))
-
-                    item = QLineEdit()
-                    item.setText(value)
-                    item.setDisabled(True)
-                    item.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    # Красим последний столбец
-                    if col == 11:
-                        if value.startswith("-"):
-                            item.setStyleSheet("background-color: #11173b;border-radius: 0px; color: rgb(244,50,49);")
-                        else:
-                            item.setStyleSheet("background-color: #11173b;border-radius: 0px; color: rgb(0,215,49);")
-                    else:
-                        item.setStyleSheet("background-color: #11173b;border-radius: 0px;")
-
-                    # Рассчитываем ширину текста
-                    font_metrics = QFontMetrics(item.font())
-                    text_width = font_metrics.horizontalAdvance(item.text())
-
-                    # Устанавливаем ширину QLineEdit с учетом отступов
-                    if col < 7:
-                        if text_width + 20 < 100:
-                            item.setMinimumWidth(100)  # +20 для отступов
-                        else:
-                            item.setMinimumWidth(text_width + 20)  # +20 для отступов
-                        header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
-                    else:
-                        item.setMinimumWidth(90)
-                        header.setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
-
-                    self.trades_table.setCellWidget(row, col, item)
-
-                    # item = self.trades_table.item(row, col)
-                    # if row % 2 == 0:
-                    #     item.setBackground(QColor("#2b3661"))  # Светлее
-
-            self.trades_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        except Exception as e:
-            traceback.print_exc()
-            time.sleep(10)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
 
     # Мани-менеджмент
 
@@ -685,7 +717,7 @@ class MainWindow(QMainWindow):
                             profit_val=item["take_profit"],
                             stop_val=item["stop_loss"],
                             result_val=item["result_type"], skip_check=True)
-            except Exception as e:
+            except Exception:
                 traceback.print_exc()
 
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
@@ -891,6 +923,8 @@ class MainWindow(QMainWindow):
 
             if not skip_check:
                 self.haveUnsavedRows = True
+                self.update_mm_table(MM_MODES[self.selected_mm_mode])
+
         except Exception:
             traceback.print_exc()
             time.sleep(10)
@@ -986,6 +1020,7 @@ class MainWindow(QMainWindow):
                         if m_name == mm_text:
                             self.selected_mm_mode = n
                             break
+
                     self.update_mm_table(mm_text)
 
                     if not nide_notification:
@@ -1038,7 +1073,8 @@ class MainWindow(QMainWindow):
             self.manage_table.removeRow(row_count - 1)
 
         # Сохраняем данные после изменения
-        self.saveData(nide_notification=True)
+
+        # self.saveData(nide_notification=True)
 
     def update_mm_table(self, text):
         # Когда значение в одном из комбобоксов изменится, обновляем все строки в этом столбце
@@ -1046,94 +1082,94 @@ class MainWindow(QMainWindow):
             combo = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])  # Получаем QComboBox из ячейки
             combo.setText(text)  # Устанавливаем тот же текст во всех строках
 
-            # При режиме 4, отключаем поле Результат и другие
+        # При режиме 4, отключаем поле Результат и другие
 
-            for row in range(1, self.manage_table.rowCount()):
+        for row in range(1, self.manage_table.rowCount()):
 
-                for i in range(1, 7):
-                    if i in [MM_TABLE_FIELDS["Результат"]] and text in [MM_MODES[1], MM_MODES[0]]:
-                        combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
-                        combo_result.setDisabled(True)
-                        combo_result.setStyleSheet("""
-                                            QComboBox {
-                                                background-color: #192142;border-radius: 0px; color: #8996c7;
-                                            }
-                                            QComboBox::drop-down{
-                                                image: url(icons/arrow.ico);
-                                                width:12px;
-                                                margin-right: 8px;
-                                            }
-                                            QComboBox QListView {
-                                                background-color: rgb(18, 26, 61);
-                                                outline: 0px;
-                                                padding: 2px;
-                                                border-radius: 5px;
-                                                border: none;
-                                            }
-                                            QComboBox QListView:item {
-                                            padding: 5px;
-                                            border-radius: 3px;
-                                            border-left: 2px solid rgb(18, 26, 61);
-                                            }
-                                            QComboBox QListView:item:hover {
-                                            background: rgb(26,38,85);
-                                            border-left: 2px solid rgb(33,62,118);
-                                            }
-                                            """)
+            for i in range(1, 7):
+                if i in [MM_TABLE_FIELDS["Результат"]] and text in [MM_MODES[1], MM_MODES[0]]:
+                    combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
+                    combo_result.setDisabled(True)
+                    combo_result.setStyleSheet("""
+                                        QComboBox {
+                                            background-color: #192142;border-radius: 0px; color: #8996c7;
+                                        }
+                                        QComboBox::drop-down{
+                                            image: url(icons/arrow.ico);
+                                            width:12px;
+                                            margin-right: 8px;
+                                        }
+                                        QComboBox QListView {
+                                            background-color: rgb(18, 26, 61);
+                                            outline: 0px;
+                                            padding: 2px;
+                                            border-radius: 5px;
+                                            border: none;
+                                        }
+                                        QComboBox QListView:item {
+                                        padding: 5px;
+                                        border-radius: 3px;
+                                        border-left: 2px solid rgb(18, 26, 61);
+                                        }
+                                        QComboBox QListView:item:hover {
+                                        background: rgb(26,38,85);
+                                        border-left: 2px solid rgb(33,62,118);
+                                        }
+                                        """)
 
-                    elif i not in [MM_TABLE_FIELDS["Результат"]] and text in MM_MODES[0]:
-                        line_edit_element = self.manage_table.cellWidget(row, i)
+                elif i not in [MM_TABLE_FIELDS["Результат"]] and text in MM_MODES[0]:
+                    line_edit_element = self.manage_table.cellWidget(row, i)
 
-                        line_edit_element.setDisabled(True)
-                        line_edit_element.setStyleSheet("""
-                        QLineEdit {
-                            background-color: #192142;border-radius: 0px; color: #8996c7;
-                        }
-                        """)
+                    line_edit_element.setDisabled(True)
+                    line_edit_element.setStyleSheet("""
+                    QLineEdit {
+                        background-color: #192142;border-radius: 0px; color: #8996c7;
+                    }
+                    """)
 
-                for i in range(1, 7):
-                    if i in [MM_TABLE_FIELDS["Результат"]] and text not in [MM_MODES[1], MM_MODES[0]]:
-                        combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
-                        combo_result.setDisabled(False)
-                        combo_result.setStyleSheet("""
-                                            QComboBox {
-                                                background-color: #121a3d;border-radius: 0px;
-                                            }
-                                            QComboBox:on {
-                                                background-color: rgb(25, 34, 74);border-radius: 0px;
-                                            }
-                                            QComboBox::drop-down{
-                                                image: url(icons/arrow.ico);
-                                                width:12px;
-                                                margin-right: 8px;
-                                            }
-                                            QComboBox QListView {
-                                                background-color: rgb(25, 34, 74);
-                                                outline: 0px;
-                                                padding: 2px;
-                                                border-radius: 5px;
-                                                border: none;
-                                            }
-                                            QComboBox QListView:item {
-                                            padding: 5px;
-                                            border-radius: 3px;
-                                            border-left: 2px solid rgb(18, 26, 61);
-                                            }
-                                            QComboBox QListView:item:hover {
-                                            background: rgb(26,38,85);
-                                            border-left: 2px solid rgb(33,62,118);
-                                            }
-                                            """)
+            for i in range(1, 7):
+                if i in [MM_TABLE_FIELDS["Результат"]] and text not in [MM_MODES[1], MM_MODES[0]]:
+                    combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
+                    combo_result.setDisabled(False)
+                    combo_result.setStyleSheet("""
+                    QComboBox {
+                        background-color: #121a3d;border-radius: 0px;
+                    }
+                    QComboBox:on {
+                        background-color: rgb(25, 34, 74);border-radius: 0px;
+                    }
+                    QComboBox::drop-down{
+                        image: url(icons/arrow.ico);
+                        width:12px;
+                        margin-right: 8px;
+                    }
+                    QComboBox QListView {
+                        background-color: rgb(25, 34, 74);
+                        outline: 0px;
+                        padding: 2px;
+                        border-radius: 5px;
+                        border: none;
+                    }
+                    QComboBox QListView:item {
+                    padding: 5px;
+                    border-radius: 3px;
+                    border-left: 2px solid rgb(18, 26, 61);
+                    }
+                    QComboBox QListView:item:hover {
+                    background: rgb(26,38,85);
+                    border-left: 2px solid rgb(33,62,118);
+                    }
+                    """)
 
-                    elif i not in [MM_TABLE_FIELDS["Результат"]] and text not in MM_MODES[0]:
-                        line_edit_element = self.manage_table.cellWidget(row, i)
+                elif i not in [MM_TABLE_FIELDS["Результат"]] and text not in MM_MODES[0]:
+                    line_edit_element = self.manage_table.cellWidget(row, i)
 
-                        line_edit_element.setDisabled(False)
-                        line_edit_element.setStyleSheet("""
-                        QLineEdit {
-                            background-color: #121a3d;border-radius: 0px;
-                        }
-                        """)
+                    line_edit_element.setDisabled(False)
+                    line_edit_element.setStyleSheet("""
+                    QLineEdit {
+                        background-color: #121a3d;border-radius: 0px;
+                    }
+                    """)
 
 
 class TransparentText(QLabel):
@@ -1160,6 +1196,10 @@ if __name__ == '__main__':
     try:
         flask_thread = FlaskThread()
         telegram_thread = TelegramBotThread(chat_id=CHAT_ID)
+
+        port = 80
+
+        # QtCore.QDir.addSearchPath('', '/')
 
         app_qt = QApplication(sys.argv)
         main_app = MainWindow()

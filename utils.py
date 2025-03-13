@@ -1,4 +1,4 @@
-import re
+import traceback
 from datetime import datetime, timedelta
 from typing import List
 
@@ -156,60 +156,66 @@ def convert_datetime_format(input_time):
 
 
 def recalculate_summary(data):
-    trades = data["trades"]
+    try:
+        trades = data["trades"]
 
-    total = len(trades)
-    profit = 0
-    loss = 0
-    refund = 0
-    net_profit = 0
-    gross_profit = 0
-    gross_loss = 0
-    avg_profit_trade = 0
-    avg_loss_trade = 0
-    max_consecutive_wins = 0
-    max_consecutive_losses = 0
+        total = len(trades)
+        profit = 0
+        loss = 0
+        refund = 0
+        net_profit = 0
+        gross_profit = 0
+        gross_loss = 0
+        avg_profit_trade = 0
+        avg_loss_trade = 0
+        max_consecutive_wins = 0
+        max_consecutive_losses = 0
 
-    consecutive_wins = 0
-    consecutive_losses = 0
+        consecutive_wins = 0
+        consecutive_losses = 0
 
-    for trade in trades:
-        result = int(re.sub(r'[^\d-]', '', trade["result"]))
-        if result > 0:
-            profit += result
-            gross_profit += result
-            consecutive_wins += 1
-            consecutive_losses = 0
-        else:
-            loss += abs(result)
-            gross_loss += abs(result)
-            consecutive_losses += 1
-            consecutive_wins = 0
+        for trade in trades:
+            result = float(trade["result"][:-1])
+            if trade["open_price"] == trade["close_price"]:
+                refund += 1
+            elif result > 0:
+                profit += 1
+                gross_profit += result
+                consecutive_wins += 1
+                consecutive_losses = 0
+            elif result < 0:
+                loss += 1
+                gross_loss += result
+                consecutive_losses += 1
+                consecutive_wins = 0
 
-        net_profit += result
+            if consecutive_wins > max_consecutive_wins:
+                max_consecutive_wins = consecutive_wins
 
-        if consecutive_wins > max_consecutive_wins:
-            max_consecutive_wins = consecutive_wins
+            if consecutive_losses > max_consecutive_losses:
+                max_consecutive_losses = consecutive_losses
 
-        if consecutive_losses > max_consecutive_losses:
-            max_consecutive_losses = consecutive_losses
+        avg_profit_trade = gross_profit / profit if profit > 0 else 0
+        avg_loss_trade = gross_loss / loss if loss > 0 else 0
 
-    avg_profit_trade = gross_profit / total if total > 0 else 0
-    avg_loss_trade = gross_loss / total if total > 0 else 0
+        net_profit = gross_profit - gross_loss
 
-    data["summary"] = {
-        "total": total,
-        "profit": profit,
-        "loss": loss,
-        "refund": refund,
-        "net_profit": net_profit,
-        "gross_profit": gross_profit,
-        "gross_loss": gross_loss,
-        "avg_profit_trade": avg_profit_trade,
-        "avg_loss_trade": avg_loss_trade,
-        "max_consecutive_wins": max_consecutive_wins,
-        "max_consecutive_losses": max_consecutive_losses
-    }
+        data["summary"] = {
+            "total": round(total, 2),
+            "profit": round(profit, 2),
+            "loss": round(loss, 2),
+            "refund": round(refund, 2),
+            "net_profit": round(net_profit, 2),
+            "gross_profit": round(gross_profit, 2),
+            "gross_loss": round(gross_loss, 2),
+            "avg_profit_trade": round(avg_profit_trade, 2),
+            "avg_loss_trade": round(avg_loss_trade, 2),
+            "max_consecutive_wins": round(max_consecutive_wins, 2),
+            "max_consecutive_losses": round(max_consecutive_losses, 2)
+        }
+    except Exception as e:
+        traceback.print_exc()
+        return False
 
     return data
 
@@ -235,6 +241,11 @@ def get_datetime_difference(time_str1, time_str2):
 
 
 def add_option_to_statistic(option_data, additional_data):
+    # option_data = {"finish_option":"ok","i_balance":"ok","m_dollar":"-0.000","m_dollar_bonus":"0.190",
+    # "m_rub":"0.00","m_rub_bonus":"0.30","m_demo":"11525.026","info_finish_option":[{"option_id":1355291,
+    # "type_balance":"demo","symbol":"EURAUD","sum":"539.300","sum_pay":"976.133","wait_profit":"436.833",
+    # "unix_open":"1741195140","time_open":"05 March 20:19:00","unix_close":1741195200,"time_close":"05 March 20:20:00",
+    # "price_open":"1.70768","finish_current_result":"loss","finish_current_result_sum":"-539.300","close_price":"1.70804"}]}
     statistic_data = load_statistic_data()
 
     if additional_data["account_type"] in ["real_dollar", "demo"]:
@@ -243,27 +254,38 @@ def add_option_to_statistic(option_data, additional_data):
         money_symbol = "₽"
 
     info = option_data["info_finish_option"][0]
+    open_price = float(info["price_open"])
+    close_price = float(info["close_price"])
+    finish_current_result = info["finish_current_result"]
+    if (open_price < close_price and finish_current_result == 'loss' or
+            open_price > close_price and finish_current_result == 'win'):
+        direction = 'SELL'
+    elif (open_price > close_price and finish_current_result == 'loss' or
+          open_price < close_price and finish_current_result == 'win'):
+        direction = 'BUY'
+    else:
+        direction = additional_data["direction"]
     # Добавляем новую сделку
     statistic_data["trades"].append(
         {
+            "type_account": additional_data["account_type"],
             "asset": info["symbol"],
             "open_time": convert_datetime_format(info["time_open"]),
             "expiration": get_datetime_difference(info["time_open"], info["time_close"]),
             "close_time": convert_datetime_format(info["time_close"]),
-            "open_price": float(info["price_open"]),
-            "trade_type": additional_data["trade_type"],
-            "close_price": float(info["close_price"]),
-            "points": round(float(info["pric"
-                                       "e_open"]) - float(info["close_price"]), 3),
+            "open_price": open_price,
+            "trade_type": direction,
+            "close_price": close_price,
+            "points": round(float(info["price_open"]) - float(info["close_price"]), 3),
             "volume": float(info["sum"]),
             "refund": 0,
-            "percentage": int(additional_data["percentage"]),
-            "result": f"000{money_symbol}"
+            "percentage": additional_data["percentage"],
+            "result": f"{info['finish_current_result_sum']}{money_symbol}"
         },
     )
 
-    updated_data = recalculate_summary(statistic_data)
-    save_statistic_data(updated_data)
+    save_statistic_data(statistic_data)
+
 
 
 if __name__ == "__main__":

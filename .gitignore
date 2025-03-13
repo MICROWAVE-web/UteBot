@@ -1,2 +1,7 @@
 /test/
 /log.log
+/output/
+/dist/
+/build/
+/.venv/
+/README.txt
