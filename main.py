@@ -34,7 +34,7 @@ from utils import recalculate_summary
 
 qInitResources()
 API_TOKEN = '7251126188:AAGsTPq2F1bWCJ_9DfSQlMH29W-FXQdWcOA'
-CURRENT_VERSION = '1.0.0'  # Текущая версия бота
+CURRENT_VERSION = '1.0.1'  # Текущая версия бота
 CHAT_ID = '-1002258303908'
 
 # Инициализация бота с использованием pyTelegramBotAPI
