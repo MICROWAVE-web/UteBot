@@ -1,5 +1,7 @@
-<!DOCTYPE RCC><RCC version="1.0">
+<RCC>
   <qresource>
+    <file>icons/arrow-left.ico</file>
+    <file>icons/arrow-right.ico</file>
     <file>icons/arrow.ico</file>
   </qresource>
 </RCC>

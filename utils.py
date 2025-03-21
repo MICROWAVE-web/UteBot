@@ -198,7 +198,7 @@ def recalculate_summary(data):
         avg_profit_trade = gross_profit / profit if profit > 0 else 0
         avg_loss_trade = gross_loss / loss if loss > 0 else 0
 
-        net_profit = gross_profit - gross_loss
+        net_profit = gross_profit + gross_loss
 
         data["summary"] = {
             "total": round(total, 2),
@@ -211,10 +211,11 @@ def recalculate_summary(data):
             "avg_profit_trade": round(avg_profit_trade, 2),
             "avg_loss_trade": round(avg_loss_trade, 2),
             "max_consecutive_wins": round(max_consecutive_wins, 2),
-            "max_consecutive_losses": round(max_consecutive_losses, 2)
+            "max_consecutive_losses": round(max_consecutive_losses, 2),
+            "winrate": str(round(round(profit / total, 2) * 100)) if total > 0 else "0%"
         }
     except Exception as e:
-        traceback.print_exc()
+        logging.exception("Exception occurred")
         return False
 
     return data
@@ -241,6 +242,9 @@ def get_datetime_difference(time_str1, time_str2):
 
 
 def add_option_to_statistic(option_data, additional_data):
+    def fixed_num(n, prec=6):
+        return f"{n:.{prec}f}".rstrip('0')
+
     # option_data = {"finish_option":"ok","i_balance":"ok","m_dollar":"-0.000","m_dollar_bonus":"0.190",
     # "m_rub":"0.00","m_rub_bonus":"0.30","m_demo":"11525.026","info_finish_option":[{"option_id":1355291,
     # "type_balance":"demo","symbol":"EURAUD","sum":"539.300","sum_pay":"976.133","wait_profit":"436.833",
@@ -264,7 +268,7 @@ def add_option_to_statistic(option_data, additional_data):
           open_price < close_price and finish_current_result == 'win'):
         direction = 'BUY'
     else:
-        direction = additional_data["direction"]
+        direction = 'BUY' if additional_data["direction"] == "UP" else "SELL"
     # Добавляем новую сделку
     statistic_data["trades"].append(
         {
@@ -276,11 +280,11 @@ def add_option_to_statistic(option_data, additional_data):
             "open_price": open_price,
             "trade_type": direction,
             "close_price": close_price,
-            "points": round(float(info["price_open"]) - float(info["close_price"]), 3),
+            "points": fixed_num(round(float(info["price_open"]) - float(info["close_price"]), 6)),
             "volume": float(info["sum"]),
             "refund": 0,
-            "percentage": additional_data["percentage"],
-            "result": f"{info['finish_current_result_sum']}{money_symbol}"
+            "percentage": str(additional_data["percentage"]) + ("%" if additional_data["percentage"] != "-" else ""),
+            "result": f"{round(float(info['finish_current_result_sum']), 6)}{money_symbol}"
         },
     )
 

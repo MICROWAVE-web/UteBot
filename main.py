@@ -13,6 +13,7 @@ import traceback
 from datetime import datetime
 
 import psutil
+import pytz
 import requests
 import telebot
 from PyQt6 import uic
@@ -21,19 +22,20 @@ from PyQt6.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics, QFont,
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QHeaderView, QMessageBox, \
     QLineEdit, QComboBox, QLabel
 from flask import Flask, request, abort
-import rc_icons
 
 from loggingfile import logging
 from mm_trading import OptionSeries
 from mm_types import MM_MODES, TYPE_ACCOUNT
 from programm_files import save_money_management_data, load_money_management_data, save_auth_data, \
     load_auth_data, load_statistic_data
+from rc_icons import qInitResources
 from scrollbar_style import scrollbarstyle
 from utils import recalculate_summary
 
-API_TOKEN = '8029150425:AAEmxk26MP4ZSpsnA433znXbDs4rW0EcKJI'
+qInitResources()
+API_TOKEN = '7251126188:AAGsTPq2F1bWCJ_9DfSQlMH29W-FXQdWcOA'
 CURRENT_VERSION = '1.0.0'  # Текущая версия бота
-CHAT_ID = '-1002397524864'
+CHAT_ID = '-1002258303908'
 
 # Инициализация бота с использованием pyTelegramBotAPI
 bot = telebot.TeleBot(API_TOKEN)
@@ -79,27 +81,33 @@ class TelegramBotThread(QThread):
                     {"status": False, "message": "Не удалось проверить актуальность версии."})
                 return
 
+            pinned_text = pinned_message.text or pinned_message.caption
+
             # Ищем версию в тексте закрепленного сообщения
             version_pattern = r"#(\d+\.\d+\.\d+)"
-            match = re.search(version_pattern, pinned_message.text)
+            if pinned_text:
+                match = re.search(version_pattern, pinned_text)
 
-            if match:
-                pinned_version = match.group(1)
-                logging.debug(f"{pinned_version=} {CURRENT_VERSION=}")
-                if pinned_version > CURRENT_VERSION:
-                    self.version_check_result.emit(
-                        {"status": False,
-                         "message": "Внимание! Ваш бот устарел. Пожалуйста, обновите до последней версии (текущая "
-                                    f"версия: {CURRENT_VERSION})."})
+                if match:
+                    pinned_version = match.group(1)
+                    logging.debug(f"{pinned_version=} {CURRENT_VERSION=}")
+                    if pinned_version > CURRENT_VERSION:
+                        self.version_check_result.emit(
+                            {"status": False,
+                             "message": "Внимание! Ваш бот устарел. Пожалуйста, обновите до последней версии (текущая "
+                                        f"версия: {CURRENT_VERSION}, актуальная: {pinned_version})"})
 
+                    else:
+                        self.version_check_result.emit(
+                            {"status": True, "message": "Вы используете актуальную версию бота."})
                 else:
                     self.version_check_result.emit(
-                        {"status": True, "message": "Вы используете актуальную версию бота."})
+                        {"status": False, "message": "Не удалось найти информацию о версии в закрепленном сообщении."})
             else:
                 self.version_check_result.emit(
                     {"status": False, "message": "Не удалось найти информацию о версии в закрепленном сообщении."})
         except Exception:
-            traceback.print_exc()
+            logging.exception("Exception occurred")
 
     def run(self):
         self.check_version()
@@ -197,7 +205,7 @@ class FlaskThread(QThread):
             print(host, port)
             app.run(host=host, port=port, use_reloader=False, debug=False)
         except Exception:
-            traceback.print_exc()
+            logging.exception("Exception occurred")
 
     def send_data_to_qt(self, data):
         self.data_received.emit(data)
@@ -219,7 +227,7 @@ def query_example():
         print(response.text)
     except requests.exceptions.RequestException as e:
         print(f"Ошибка при дублировании запроса!")
-        traceback.print_exc()
+        logging.exception("Exception occurred")
 
     # Отправляем данные в основное приложение
     flask_thread.send_data_to_qt({'pair': pair, 'direct': direct})
@@ -303,10 +311,10 @@ class MainWindow(QMainWindow):
         self.saveData(nide_notification=True)
 
         # Скроллинг
-        self.trades_table.setStyleSheet(scrollbarstyle)
-        self.manage_table.setStyleSheet(scrollbarstyle)
-        self.textBrowser.setStyleSheet(scrollbarstyle)
-        self.textBrowser_2.setStyleSheet(scrollbarstyle)
+        self.trades_table.setStyleSheet(scrollbarstyle(margins=True))
+        self.manage_table.setStyleSheet(scrollbarstyle())
+        self.textBrowser.setStyleSheet(scrollbarstyle())
+        self.textBrowser_2.setStyleSheet(scrollbarstyle())
 
         self.setStatusBar(None)
 
@@ -315,6 +323,9 @@ class MainWindow(QMainWindow):
         self.update_text_position()  # Устанавливаем позицию текста
 
         self.fix_table()
+
+        # Обновляем статистику
+        self.btn_apply.click()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -392,7 +403,7 @@ class MainWindow(QMainWindow):
             telegram_thread.version_check_result.connect(self.show_warning)
             telegram_thread.start()
         except:
-            traceback.print_exc()
+            logging.exception("Exception occurred")
 
     def show_warning(self, callback_dict):
         status, message = callback_dict["status"], callback_dict["message"]
@@ -454,7 +465,7 @@ class MainWindow(QMainWindow):
                 if self.bot is not None:
                     self.bot.mt4_signal(mt4_data=data)
             except Exception:
-                traceback.print_exc()
+                logging.exception("Exception occurred")
         else:
             logging.error("Client not connected! Reconnection...")
             self.bot.reconnect()
@@ -520,8 +531,11 @@ class MainWindow(QMainWindow):
             self.log_message('Сервер остановлен')
 
     def log_message(self, message):
+        # Получаем текущее время в часовом поясе UTC+3
+        current_time = datetime.now(pytz.utc)
+        current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
         self.textBrowser.append(
-            f"<p><span style='color:gray'>{datetime.now().strftime('%Y-%m-%d, %H:%M:%S')}:</span> {message}</p>")  # Зачем был ноль в конце?
+            f"<p><span style='color:gray'>{current_time.strftime('%Y-%m-%d, %H:%M:%S')}:</span> {message}</p>")  # Зачем был ноль в конце?
 
     # В методе closeEvent
     def closeEvent(self, a0):
@@ -585,6 +599,7 @@ class MainWindow(QMainWindow):
 
             green_color = "rgb(40,167,69)"
             red_color = "rgb(208,0,0)"
+            gray_color = "rgb(147,147,147)"
 
             trade_label = ["type_account", "asset", "open_time", "expiration", "close_time",
                            "open_price", "trade_type", "close_price", "points",
@@ -594,7 +609,7 @@ class MainWindow(QMainWindow):
 
             self.trades_table.setColumnWidth(0, 40)
 
-            for row, trade in enumerate(trades):
+            for row, trade in enumerate(trades[::-1]):
                 for col, key in enumerate(trade_label):
                     value = str(trade.get(key, "N/A"))
 
@@ -610,7 +625,7 @@ class MainWindow(QMainWindow):
                     # Красим последний столбец
                     if col == 11:
                         if float(trade["open_price"]) == float(trade["close_price"]):
-                            item.setStyleSheet(f"background-color: #11173b;;border-radius: 0px; color: white;")
+                            item.setStyleSheet(f"background-color: {gray_color};border-radius: 0px; color: white;")
                         elif value.startswith("-"):
                             item.setStyleSheet(f"background-color: {red_color};border-radius: 0px; color: white;")
                         else:
@@ -648,16 +663,16 @@ class MainWindow(QMainWindow):
             data["trades"] = trades
 
             updated_data = recalculate_summary(data)
-
-            self.update_summary(updated_data.get("summary", {}))
+            if updated_data:
+                self.update_summary(updated_data.get("summary", {}))
         except Exception:
-            traceback.print_exc()
+            logging.exception("Exception occurred")
             time.sleep(10)
 
     def update_summary(self, summary):
         """ Обновляет блок сводки статистики """
         summary_labels = [
-            "total", "profit", "loss", "refund", "net_profit",
+            "total", "profit", "loss", "refund", "winrate", "net_profit",
             "gross_profit", "gross_loss", "avg_profit_trade", "avg_loss_trade",
             "max_consecutive_wins", "max_consecutive_losses"
         ]
@@ -665,7 +680,8 @@ class MainWindow(QMainWindow):
             Всего (Total)
             Прибыльных (Profit)
             Убыточных (Loss)
-            С возвратом (Refund)    
+            С возвратом (Refund)
+            Процент побед % (Win rate %)    
             Общий результат (Total net profit)   
             Сумма прибыльных (Gross profit)     
             Сумма убыточных (Gross loss)   
@@ -718,7 +734,7 @@ class MainWindow(QMainWindow):
                             stop_val=item["stop_loss"],
                             result_val=item["result_type"], skip_check=True)
             except Exception:
-                traceback.print_exc()
+                logging.exception("Exception occurred")
 
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
                mm_type_val=MM_MODES[1],
@@ -926,7 +942,7 @@ class MainWindow(QMainWindow):
                 self.update_mm_table(MM_MODES[self.selected_mm_mode])
 
         except Exception:
-            traceback.print_exc()
+            logging.exception("Exception occurred")
             time.sleep(10)
 
     def saveData(self, nide_notification=False):
@@ -992,7 +1008,7 @@ class MainWindow(QMainWindow):
                                 raise ValueError("Неверный формат или слишком короткий интервал")
                             data[row]["expiration"] = value
                         except ValueError:
-                            traceback.print_exc()
+                            logging.exception("Exception occurred")
                             return
                     elif value.isdigit():  # В минутах
                         if int(value) not in [1, 5, 15, 30, 60]:
@@ -1060,7 +1076,7 @@ class MainWindow(QMainWindow):
             if self.bot:
                 self.bot.clean_counters()
         except Exception:
-            traceback.print_exc()
+            logging.exception("Exception occurred")
             time.sleep(10)
 
     def deleteClicked(self):
@@ -1207,4 +1223,4 @@ if __name__ == '__main__':
         logging.info('APP started!')
         sys.exit(app_qt.exec())
     except Exception:
-        traceback.print_exc()
+        logging.exception("Exception occurred")

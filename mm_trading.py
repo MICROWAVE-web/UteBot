@@ -329,7 +329,7 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
             }
@@ -343,7 +343,7 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
             }
@@ -365,7 +365,7 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
             }
@@ -403,7 +403,7 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
             }
@@ -441,7 +441,7 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list.get(mt4_pair) if self.pair_list.get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
             }
@@ -506,7 +506,7 @@ class OptionSeries:
                 pass
 
         except Exception:
-            traceback.print_exc()
+            logging.exception("Exception occurred")
 
     def on_close(self, ws, close_status_code, close_msg):
         self.is_connected = False
@@ -515,7 +515,7 @@ class OptionSeries:
     def on_error(self, ws, error):
         self.connection_established.set()
         self.stop_event.set()
-        traceback.print_exc()
+        logging.exception("Exception occurred")
 
     def _send_request(self, message, condition):
         req_id = str(uuid.uuid4())
@@ -564,7 +564,7 @@ class OptionSeries:
             return json.loads(response)
         except json.JSONDecodeError:
             logging.error(response)
-            traceback.print_exc()
+            logging.exception("Exception occurred")
             raise Exception("Ошибка декодирования only_pair_list")
 
     def open_option(self, pair_name, up_dn, sum_option, type_account,
@@ -615,7 +615,7 @@ class OptionSeries:
             self.ws_thread.join()
         except Exception:
             logging.exception("Exception closing connection")
-            traceback.print_exc()
+            logging.exception("Exception occurred")
 
     def get_balance(self, account_type):
         if account_type == "demo":
