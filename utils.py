@@ -176,8 +176,13 @@ def recalculate_summary(data):
 
         for trade in trades:
             result = float(trade["result"][:-1])
-            if trade["open_price"] == trade["close_price"]:
+            # Если обычный возврат ли возврат на -1 пункт - 50%
+            if trade["open_price"] == trade["close_price"] or trade.get('loss_refund') is True:
                 refund += 1
+                # Учитываем возвратв 50% как убыточную сделку
+                if result < trade['volume']:
+                    gross_loss += result
+
             elif result > 0:
                 profit += 1
                 gross_profit += result
@@ -252,6 +257,8 @@ def add_option_to_statistic(option_data, additional_data):
     # "price_open":"1.70768","finish_current_result":"loss","finish_current_result_sum":"-539.300","close_price":"1.70804"}]}
     statistic_data = load_statistic_data()
 
+    loss_refund = additional_data["loss_refund"]
+
     if additional_data["account_type"] in ["real_dollar", "demo"]:
         money_symbol = "$"
     else:
@@ -284,7 +291,8 @@ def add_option_to_statistic(option_data, additional_data):
             "volume": float(info["sum"]),
             "refund": 0,
             "percentage": str(additional_data["percentage"]) + ("%" if additional_data["percentage"] != "-" else ""),
-            "result": f"{round(float(info['finish_current_result_sum']), 6)}{money_symbol}"
+            "result": f"{round(float(info['finish_current_result_sum']), 6)}{money_symbol}",
+            "loss_refund": loss_refund,
         },
     )
 

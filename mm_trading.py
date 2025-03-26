@@ -321,8 +321,17 @@ class OptionSeries:
         option_symbol = str(option_data["info_finish_option"][0]["symbol"])
 
         logging.debug(f"OPTION FINISHED: {option_data}")
-
         self.update_mm_data()
+
+
+        option_result_word = option_data["info_finish_option"][0]["finish_current_result"].lower()
+
+        # Если пришел возврат в 50%, считаем как убыточную сделку
+        loss_refund = False
+        if '-1' in option_result_word:
+            option_result_word.replace("-1", "loss", 1)
+            loss_refund = True
+
 
         if self.window.selected_mm_mode == 0 and self.MT4_SIGNALS["type_0"].get(option_symbol):
             mt4_pair, mt4_direct = self.MT4_SIGNALS["type_0"][option_symbol]
@@ -332,6 +341,7 @@ class OptionSeries:
                 "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
+                "option_result_word": option_result_word, "loss_refund": loss_refund
             }
             add_option_to_statistic(option_data, additional_data)
 
@@ -346,6 +356,7 @@ class OptionSeries:
                 "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
+                "option_result_word": option_result_word, "loss_refund": loss_refund
             }
             add_option_to_statistic(option_data, additional_data)
 
@@ -368,6 +379,7 @@ class OptionSeries:
                 "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
+                "option_result_word": option_result_word, "loss_refund": loss_refund
             }
             add_option_to_statistic(option_data, additional_data)
 
@@ -379,15 +391,17 @@ class OptionSeries:
                 self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 return
 
-            if (option_data["info_finish_option"][0]["finish_current_result"].lower() != "=") and (
-                    option_data["info_finish_option"][0]["finish_current_result"].lower() !=
+            if (option_result_word != "=") and (
+                    option_result_word !=
                     self.deal_series[self.COUNTERS["type_2"][option_symbol]]["result_type"].lower()):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
                 self.window.log_message(
                     f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 return
 
-            self.process_option(new_serial=False, counter=self.COUNTERS["type_2"][option_symbol], mt4_pair=mt4_pair,
+            jump_to = self.deal_series[self.COUNTERS["type_2"][option_symbol]]["jump_to"]
+
+            self.process_option(new_serial=False, counter=jump_to, mt4_pair=mt4_pair,
                                 mt4_direct=mt4_direct)
 
         elif self.window.selected_mm_mode == 3 and self.MT4_SIGNALS["type_3"].get(option_symbol):
@@ -406,6 +420,7 @@ class OptionSeries:
                 "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
+                "option_result_word": option_result_word, "loss_refund": loss_refund
             }
             add_option_to_statistic(option_data, additional_data)
 
@@ -416,16 +431,20 @@ class OptionSeries:
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
                 self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 # Обнуления счетчика режима 4 по этой паре
-                self.COUNTERS["type_3"] = 0
+                jump_to = self.deal_series[self.COUNTERS["type_3"]]["jump_to"]
+                self.COUNTERS["type_3"] = jump_to
+                # self.COUNTERS["type_3"] = 0
                 return
 
-            if (option_data["info_finish_option"][0]["finish_current_result"].lower() != "=") and (
-                    option_data["info_finish_option"][0]["finish_current_result"].lower() !=
+            if (option_result_word != "=") and (
+                    option_result_word !=
                     self.deal_series[self.COUNTERS["type_3"]]["result_type"].lower()):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
                 self.window.log_message(
                     f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
-                self.COUNTERS["type_3"] = 0
+                jump_to = self.deal_series[self.COUNTERS["type_3"]]["jump_to"]
+                self.COUNTERS["type_3"] = jump_to
+                # self.COUNTERS["type_3"] = 0
                 return
 
         elif self.window.selected_mm_mode == 4 and self.MT4_SIGNALS["type_4"].get(option_symbol):
@@ -444,6 +463,7 @@ class OptionSeries:
                 "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
+                "option_result_word": option_result_word, "loss_refund": loss_refund
             }
             add_option_to_statistic(option_data, additional_data)
 
@@ -454,16 +474,22 @@ class OptionSeries:
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
                 self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 # Обнуления счетчика режима 4 по этой паре
-                self.COUNTERS["type_4"][mt4_pair] = 0
+                #self.COUNTERS["type_4"][mt4_pair] = 0
+
+                jump_to = self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["jump_to"]
+                self.COUNTERS["type_4"][mt4_pair] = jump_to
                 return
 
-            if (option_data["info_finish_option"][0]["finish_current_result"].lower() != "=") and (
-                    option_data["info_finish_option"][0]["finish_current_result"].lower() !=
+            if (option_result_word != "=") and (
+                    option_result_word !=
                     self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["result_type"].lower()):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
                 self.window.log_message(
                     f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
-                self.COUNTERS["type_4"][mt4_pair] = 0
+                #self.COUNTERS["type_4"][mt4_pair] = 0
+
+                jump_to = self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["jump_to"]
+                self.COUNTERS["type_4"][mt4_pair] = jump_to
                 return
         else:
             logging.error("Завершен неизвестный опцион.")

@@ -51,10 +51,11 @@ MM_TABLE_FIELDS = {
     "Тип ММ": 1,
     "Инвестиция": 2,
     "Экспирация": 3,
-    "Результат": 4,
+    "Перейти к": 4,
+    "Результат": 5,
     # "Фильтр выплат": 5,
-    "Тейк профит": 5,
-    "Стоп лосс": 6
+    "Тейк профит": 6,
+    "Стоп лосс": 7
 }
 
 
@@ -732,13 +733,14 @@ class MainWindow(QMainWindow):
                             mm_type_val=item["mm_type"],
                             profit_val=item["take_profit"],
                             stop_val=item["stop_loss"],
+                            jump_to=item.get("jump_to", 1),
                             result_val=item["result_type"], skip_check=True)
             except Exception:
                 logging.exception("Exception occurred")
 
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
                mm_type_val=MM_MODES[1],
-               profit_val="100000", stop_val="100", result_val='WIN', skip_check=False):
+               profit_val="100000", stop_val="100", jump_to=1, result_val='WIN', skip_check=False):
         try:
             rowCount = self.manage_table.rowCount()
             self.manage_table.insertRow(rowCount)
@@ -924,6 +926,9 @@ class MainWindow(QMainWindow):
                     item.setText(mm_type_val)
                     # Подключаем сигнал изменения ячейки к слоту
                     item.textChanged.connect(self.update_mm_table)
+                elif i == MM_TABLE_FIELDS["Перейти к"]:
+                    item.setValidator(self.digit_validator)
+                    item.setText(jump_to)
                 else:
                     item.setValidator(self.digit_validator)
                 item.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
@@ -1045,14 +1050,26 @@ class MainWindow(QMainWindow):
                                                 f"Для выбранного вами режима необходимо настроить хотя бы 2 строки")
                             return
 
+                # Проверка "Перейти к"
+                jump_to_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Перейти к"])
+                if jump_to_item and int(jump_to_item.text().strip()) > rowCount or int(jump_to_item.text().strip()) < 1:
+                    QMessageBox.warning(self, "Ошибка", f'Параметр "Перейти к" выходит за диапазон таблицы в строке {row + 1}')
+                    return
+
+                if jump_to_item and int(jump_to_item.text().strip()) == (row + 1):
+                    QMessageBox.warning(self, "Ошибка", f'Параметр "Перейти к" не должен указывать на текущую строку в строке {row + 1}')
+                    return
+
+                if jump_to_item:
+                    data[row]["jump_to"] = int(jump_to_item.text().strip())
+
                 # Проверка результата
                 if row > 0:
                     result_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Результат"])
                     if result_item and result_item.currentText().strip() not in ["WIN", "LOSS"]:
                         QMessageBox.warning(self, "Ошибка", f"Результат должен быть WIN или LOSS в строке {row + 1}")
                         return
-                data[row]["result_type"] = self.manage_table.cellWidget(row, MM_TABLE_FIELDS[
-                    "Результат"]).currentText().strip()
+                data[row]["result_type"] = result_item.currentText().strip()
 
                 # Проверка Тейк профит и Стоп лосс
                 for col in [MM_TABLE_FIELDS["Тейк профит"], MM_TABLE_FIELDS["Стоп лосс"]]:
