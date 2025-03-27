@@ -95,7 +95,7 @@ margin-bottom: 50px;
                     </string>
       </property>
       <property name="currentIndex">
-       <number>2</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tab_authorization">
        <property name="sizePolicy">
@@ -424,6 +424,12 @@ QScrollBar:vertical, QScrollBar:horizontal {
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="minimumSize">
+           <size>
+            <width>950</width>
+            <height>0</height>
+           </size>
+          </property>
           <property name="styleSheet">
            <string notr="true">QTableWidget {
                                 background-color: rgb(18, 26, 61);
@@ -488,6 +494,11 @@ QScrollBar:vertical, QScrollBar:horizontal {
           <column>
            <property name="text">
             <string>Экспирация</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Перейти к строке №</string>
            </property>
           </column>
           <column>

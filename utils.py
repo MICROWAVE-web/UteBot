@@ -1,4 +1,3 @@
-import traceback
 from datetime import datetime, timedelta
 from typing import List
 
@@ -52,13 +51,13 @@ def count_expiration_type_1(candle_long_in_minutes):
 
 # Определяем временные интервалы
 time_intervals = [
-    ("00:00:00", "05:00:00"),
+    # ("00:00:00", "05:00:00"),
     ("07:55:00", "08:01:59"),
     ("16:55:00", "17:01:59"),
     ("17:55:00", "18:01:59"),
     ("18:55:00", "19:01:59"),
     ("19:55:00", "20:01:59"),
-    ("20:30:00", "23:59:59"),
+    # ("20:30:00", "23:59:59"),
     # ("20:55:00", "21:01:59"),
     # ("21:55:00", "22:01:59"),
     # ("22:55:00", "23:01:59"),
@@ -178,10 +177,12 @@ def recalculate_summary(data):
             result = float(trade["result"][:-1])
             # Если обычный возврат ли возврат на -1 пункт - 50%
             if trade["open_price"] == trade["close_price"] or trade.get('loss_refund') is True:
-                refund += 1
                 # Учитываем возвратв 50% как убыточную сделку
                 if result < trade['volume']:
                     gross_loss += result
+                    loss += 1
+                else:
+                    refund += 1
 
             elif result > 0:
                 profit += 1
@@ -248,7 +249,7 @@ def get_datetime_difference(time_str1, time_str2):
 
 def add_option_to_statistic(option_data, additional_data):
     def fixed_num(n, prec=6):
-        return f"{n:.{prec}f}".rstrip('0')
+        return f"{n:.{prec}f}".rstrip('0').rstrip('.')
 
     # option_data = {"finish_option":"ok","i_balance":"ok","m_dollar":"-0.000","m_dollar_bonus":"0.190",
     # "m_rub":"0.00","m_rub_bonus":"0.30","m_demo":"11525.026","info_finish_option":[{"option_id":1355291,
@@ -276,6 +277,13 @@ def add_option_to_statistic(option_data, additional_data):
         direction = 'BUY'
     else:
         direction = 'BUY' if additional_data["direction"] == "UP" else "SELL"
+
+    # Расчитывает result
+    if loss_refund:
+        result = float(info["finish_current_result_sum"]) - float(info['sum'])
+    else:
+        result = float(info['finish_current_result_sum'])
+
     # Добавляем новую сделку
     statistic_data["trades"].append(
         {
@@ -291,13 +299,12 @@ def add_option_to_statistic(option_data, additional_data):
             "volume": float(info["sum"]),
             "refund": 0,
             "percentage": str(additional_data["percentage"]) + ("%" if additional_data["percentage"] != "-" else ""),
-            "result": f"{round(float(info['finish_current_result_sum']), 6)}{money_symbol}",
+            "result": f"{round(result, 6)}{money_symbol}",
             "loss_refund": loss_refund,
         },
     )
 
     save_statistic_data(statistic_data)
-
 
 
 if __name__ == "__main__":

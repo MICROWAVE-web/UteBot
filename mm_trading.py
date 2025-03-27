@@ -3,7 +3,6 @@ import json
 import ssl
 import threading
 import time
-import traceback
 import uuid
 from datetime import timedelta
 
@@ -311,18 +310,20 @@ class OptionSeries:
         if self.window.selected_mm_mode == 1:
             self.COUNTERS["type_1"][mt4_pair] += 1
         elif self.window.selected_mm_mode == 2:
-            self.COUNTERS["type_2"][mt4_pair] += 1
+            jump_to = self.deal_series[self.COUNTERS["type_2"][mt4_pair]]["jump_to"] - 1
+            self.COUNTERS["type_2"][mt4_pair] = jump_to
         elif self.window.selected_mm_mode == 3:
-            self.COUNTERS["type_3"] += 1
+            jump_to = self.deal_series[self.COUNTERS["type_3"]]["jump_to"] - 1
+            self.COUNTERS["type_3"] = jump_to
         elif self.window.selected_mm_mode == 4:
-            self.COUNTERS["type_4"][mt4_pair] += 1
+            jump_to = self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["jump_to"] - 1
+            self.COUNTERS["type_4"][mt4_pair] = jump_to
 
     def option_finished(self, option_data):
         option_symbol = str(option_data["info_finish_option"][0]["symbol"])
 
         logging.debug(f"OPTION FINISHED: {option_data}")
         self.update_mm_data()
-
 
         option_result_word = option_data["info_finish_option"][0]["finish_current_result"].lower()
 
@@ -332,13 +333,13 @@ class OptionSeries:
             option_result_word.replace("-1", "loss", 1)
             loss_refund = True
 
-
         if self.window.selected_mm_mode == 0 and self.MT4_SIGNALS["type_0"].get(option_symbol):
             mt4_pair, mt4_direct = self.MT4_SIGNALS["type_0"][option_symbol]
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(
+                    mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
                 "option_result_word": option_result_word, "loss_refund": loss_refund
@@ -353,7 +354,8 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(
+                    mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
                 "option_result_word": option_result_word, "loss_refund": loss_refund
@@ -376,7 +378,8 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(
+                    mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
                 "option_result_word": option_result_word, "loss_refund": loss_refund
@@ -399,9 +402,14 @@ class OptionSeries:
                     f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 return
 
-            jump_to = self.deal_series[self.COUNTERS["type_2"][option_symbol]]["jump_to"]
+            if self.COUNTERS["type_2"][option_symbol] == -1:
+                # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
+                self.window.log_message(
+                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                return
 
-            self.process_option(new_serial=False, counter=jump_to, mt4_pair=mt4_pair,
+            self.process_option(new_serial=False, counter=self.COUNTERS["type_2"][option_symbol], mt4_pair=mt4_pair,
                                 mt4_direct=mt4_direct)
 
         elif self.window.selected_mm_mode == 3 and self.MT4_SIGNALS["type_3"].get(option_symbol):
@@ -417,7 +425,8 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(
+                    mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
                 "option_result_word": option_result_word, "loss_refund": loss_refund
@@ -431,8 +440,7 @@ class OptionSeries:
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
                 self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 # Обнуления счетчика режима 4 по этой паре
-                jump_to = self.deal_series[self.COUNTERS["type_3"]]["jump_to"]
-                self.COUNTERS["type_3"] = jump_to
+                self.COUNTERS["type_3"] = 0
                 # self.COUNTERS["type_3"] = 0
                 return
 
@@ -442,9 +450,15 @@ class OptionSeries:
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
                 self.window.log_message(
                     f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
-                jump_to = self.deal_series[self.COUNTERS["type_3"]]["jump_to"]
-                self.COUNTERS["type_3"] = jump_to
-                # self.COUNTERS["type_3"] = 0
+                self.COUNTERS["type_3"] = 0
+                return
+
+            if self.COUNTERS["type_3"] == -1:
+                # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
+                self.window.log_message(
+                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                self.COUNTERS["type_3"] = 0
                 return
 
         elif self.window.selected_mm_mode == 4 and self.MT4_SIGNALS["type_4"].get(option_symbol):
@@ -460,7 +474,8 @@ class OptionSeries:
 
             # Сохраняем в статистику
             additional_data = {
-                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(mt4_pair) else "-",
+                "percentage": self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(
+                    mt4_pair) else "-",
                 "account_type": self.account_type,
                 "direction": mt4_direct,
                 "option_result_word": option_result_word, "loss_refund": loss_refund
@@ -474,10 +489,9 @@ class OptionSeries:
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
                 self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 # Обнуления счетчика режима 4 по этой паре
-                #self.COUNTERS["type_4"][mt4_pair] = 0
+                # self.COUNTERS["type_4"][mt4_pair] = 0
 
-                jump_to = self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["jump_to"]
-                self.COUNTERS["type_4"][mt4_pair] = jump_to
+                self.COUNTERS["type_4"][mt4_pair] = 0
                 return
 
             if (option_result_word != "=") and (
@@ -486,10 +500,17 @@ class OptionSeries:
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
                 self.window.log_message(
                     f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
-                #self.COUNTERS["type_4"][mt4_pair] = 0
+                # self.COUNTERS["type_4"][mt4_pair] = 0
 
-                jump_to = self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["jump_to"]
-                self.COUNTERS["type_4"][mt4_pair] = jump_to
+                self.COUNTERS["type_4"][mt4_pair] = 0
+                return
+
+            if self.COUNTERS["type_4"][mt4_pair] == -1:
+                # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
+                self.window.log_message(
+                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                self.COUNTERS["type_4"][mt4_pair] = 0
                 return
         else:
             logging.error("Завершен неизвестный опцион.")
@@ -540,7 +561,6 @@ class OptionSeries:
 
     def on_error(self, ws, error):
         self.connection_established.set()
-        self.stop_event.set()
         logging.exception("Exception occurred")
 
     def _send_request(self, message, condition):
@@ -623,13 +643,12 @@ class OptionSeries:
 
     def ping_serv(self):
         while not self.stop_event.is_set():
-            if hasattr(self, 'COUNTERS'):
-                logging.debug(self.COUNTERS)
             try:
                 self.ws.send("ping_us")
             except Exception as e:
                 if not self.stop_event.is_set():
                     self.reconnect()
+                    logging.debug("reconnection...")
             time.sleep(2)
 
     def close_connection(self):

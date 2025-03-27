@@ -34,7 +34,7 @@ from utils import recalculate_summary
 
 qInitResources()
 API_TOKEN = '7251126188:AAGsTPq2F1bWCJ_9DfSQlMH29W-FXQdWcOA'
-CURRENT_VERSION = '1.0.1'  # Текущая версия бота
+CURRENT_VERSION = '1.0.2'  # Текущая версия бота
 CHAT_ID = '-1002258303908'
 
 # Инициализация бота с использованием pyTelegramBotAPI
@@ -726,15 +726,19 @@ class MainWindow(QMainWindow):
 
         data = load_money_management_data()
 
+        cnt = 2
         for key, item in data.items():
             try:
+                if cnt >= len(data) + 1:
+                    cnt = 0
                 self.addRow(invest_val=item["investment"],
                             expiration_val=item["expiration"],
                             mm_type_val=item["mm_type"],
                             profit_val=item["take_profit"],
                             stop_val=item["stop_loss"],
-                            jump_to=item.get("jump_to", 1),
+                            jump_to=item.get("jump_to", cnt),
                             result_val=item["result_type"], skip_check=True)
+                cnt += 1
             except Exception:
                 logging.exception("Exception occurred")
 
@@ -772,7 +776,7 @@ class MainWindow(QMainWindow):
 
             # поле результат
             combo = QComboBox()
-            if rowCount > 0 and self.selected_mm_mode != 1:
+            if self.selected_mm_mode != 1:
                 combo.addItems(["WIN", "LOSS"])
                 combo.setStyleSheet("""
                 QComboBox {
@@ -902,7 +906,7 @@ class MainWindow(QMainWindow):
             self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Тип ММ"], combo_mm)'''
 
             # Установка пустых значений
-            for i in range(1, 7):
+            for i in range(1, self.manage_table.columnCount()):
                 if i in [MM_TABLE_FIELDS["Результат"]]:
                     continue
 
@@ -928,7 +932,7 @@ class MainWindow(QMainWindow):
                     item.textChanged.connect(self.update_mm_table)
                 elif i == MM_TABLE_FIELDS["Перейти к"]:
                     item.setValidator(self.digit_validator)
-                    item.setText(jump_to)
+                    item.setText(str(jump_to))
                 else:
                     item.setValidator(self.digit_validator)
                 item.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
@@ -1052,20 +1056,22 @@ class MainWindow(QMainWindow):
 
                 # Проверка "Перейти к"
                 jump_to_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Перейти к"])
-                if jump_to_item and int(jump_to_item.text().strip()) > rowCount or int(jump_to_item.text().strip()) < 1:
-                    QMessageBox.warning(self, "Ошибка", f'Параметр "Перейти к" выходит за диапазон таблицы в строке {row + 1}')
+                if jump_to_item and int(jump_to_item.text().strip()) > rowCount:
+                    QMessageBox.warning(self, "Ошибка",
+                                        f'Параметр "Перейти к" выходит за диапазон таблицы в строке {row + 1}')
                     return
 
-                if jump_to_item and int(jump_to_item.text().strip()) == (row + 1):
-                    QMessageBox.warning(self, "Ошибка", f'Параметр "Перейти к" не должен указывать на текущую строку в строке {row + 1}')
+                if jump_to_item and row != 0 and int(jump_to_item.text().strip()) == (row + 1):
+                    QMessageBox.warning(self, "Ошибка",
+                                        f'Параметр "Перейти к" не должен указывать на текущую строку в строке {row + 1}')
                     return
 
                 if jump_to_item:
                     data[row]["jump_to"] = int(jump_to_item.text().strip())
 
                 # Проверка результата
+                result_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Результат"])
                 if row > 0:
-                    result_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Результат"])
                     if result_item and result_item.currentText().strip() not in ["WIN", "LOSS"]:
                         QMessageBox.warning(self, "Ошибка", f"Результат должен быть WIN или LOSS в строке {row + 1}")
                         return
@@ -1097,29 +1103,77 @@ class MainWindow(QMainWindow):
             time.sleep(10)
 
     def deleteClicked(self):
-        # Получаем количество строк в таблице
-        row_count = self.manage_table.rowCount()
 
         # Если в таблице есть строки
-        if row_count > 0:
+        if self.manage_table.rowCount() > 0:
             # Удаляем последнюю строку
-            self.manage_table.removeRow(row_count - 1)
+            self.manage_table.removeRow(self.manage_table.rowCount() - 1)
+
+        if self.manage_table.rowCount() > 0:
+            combo = self.manage_table.cellWidget(self.manage_table.rowCount() - 1, MM_TABLE_FIELDS["Перейти к"])
+            combo.setText("0")
 
         # Сохраняем данные после изменения
 
         # self.saveData(nide_notification=True)
 
     def update_mm_table(self, text):
+        if not text:
+            return
         # Когда значение в одном из комбобоксов изменится, обновляем все строки в этом столбце
         for row in range(self.manage_table.rowCount()):
             combo = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])  # Получаем QComboBox из ячейки
             combo.setText(text)  # Устанавливаем тот же текст во всех строках
 
-        # При режиме 4, отключаем поле Результат и другие
+        # При режиме 0, отключаем поле Результат и другие
 
-        for row in range(1, self.manage_table.rowCount()):
+        for row in range(0, self.manage_table.rowCount()):
 
-            for i in range(1, 7):
+            if row == 0 and text in [MM_MODES[1], MM_MODES[0]]:
+                # Отключаем результат и перейти к
+                for i in range(1, self.manage_table.columnCount()):
+                    if i in [MM_TABLE_FIELDS["Результат"]] and text in [MM_MODES[1], MM_MODES[0]]:
+                        combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
+                        combo_result.setDisabled(True)
+                        combo_result.setStyleSheet("""
+                                            QComboBox {
+                                                background-color: #192142;border-radius: 0px; color: #8996c7;
+                                            }
+                                            QComboBox::drop-down{
+                                                image: url(icons/arrow.ico);
+                                                width:12px;
+                                                margin-right: 8px;
+                                            }
+                                            QComboBox QListView {
+                                                background-color: rgb(18, 26, 61);
+                                                outline: 0px;
+                                                padding: 2px;
+                                                border-radius: 5px;
+                                                border: none;
+                                            }
+                                            QComboBox QListView:item {
+                                            padding: 5px;
+                                            border-radius: 3px;
+                                            border-left: 2px solid rgb(18, 26, 61);
+                                            }
+                                            QComboBox QListView:item:hover {
+                                            background: rgb(26,38,85);
+                                            border-left: 2px solid rgb(33,62,118);
+                                            }
+                                            """)
+
+                    if i in [MM_TABLE_FIELDS["Перейти к"]] and text in [MM_MODES[1], MM_MODES[0]]:
+                        combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
+                        combo_result.setDisabled(True)
+                        combo_result.setStyleSheet("""
+                                            QLineEdit {
+                                                background-color: #192142;border-radius: 0px; color: #8996c7;
+                                            }
+                                            """)
+
+                continue
+
+            for i in range(1, self.manage_table.columnCount()):
                 if i in [MM_TABLE_FIELDS["Результат"]] and text in [MM_MODES[1], MM_MODES[0]]:
                     combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
                     combo_result.setDisabled(True)
@@ -1160,7 +1214,6 @@ class MainWindow(QMainWindow):
                     }
                     """)
 
-            for i in range(1, 7):
                 if i in [MM_TABLE_FIELDS["Результат"]] and text not in [MM_MODES[1], MM_MODES[0]]:
                     combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
                     combo_result.setDisabled(False)
@@ -1203,6 +1256,15 @@ class MainWindow(QMainWindow):
                         background-color: #121a3d;border-radius: 0px;
                     }
                     """)
+
+                if i in [MM_TABLE_FIELDS["Перейти к"]] and text in [MM_MODES[1], MM_MODES[0]]:
+                    combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
+                    combo_result.setDisabled(True)
+                    combo_result.setStyleSheet("""
+                                        QLineEdit {
+                                            background-color: #192142;border-radius: 0px; color: #8996c7;
+                                        }
+                                        """)
 
 
 class TransparentText(QLabel):
