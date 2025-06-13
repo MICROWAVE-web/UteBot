@@ -309,15 +309,16 @@ class OptionSeries:
         # Увеличение счётчиков
         if self.window.selected_mm_mode == 1:
             self.COUNTERS["type_1"][mt4_pair] += 1
-        elif self.window.selected_mm_mode == 2:
-            jump_to = self.deal_series[self.COUNTERS["type_2"][mt4_pair]]["jump_to"] - 1
-            self.COUNTERS["type_2"][mt4_pair] = jump_to
+
+        # Для режимов 2, 3, 4 используем колонки WIN и LOSS
+        """elif self.window.selected_mm_mode == 2:
+            self.COUNTERS["type_2"][mt4_pair] += 1
         elif self.window.selected_mm_mode == 3:
-            jump_to = self.deal_series[self.COUNTERS["type_3"]]["jump_to"] - 1
-            self.COUNTERS["type_3"] = jump_to
+            self.COUNTERS["type_3"] += 1
         elif self.window.selected_mm_mode == 4:
-            jump_to = self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["jump_to"] - 1
-            self.COUNTERS["type_4"][mt4_pair] = jump_to
+            self.COUNTERS["type_4"][mt4_pair] += 1"""
+
+        # ^^^ Увеличение счетчико происходит в option finished
 
     def option_finished(self, option_data):
         option_symbol = str(option_data["info_finish_option"][0]["symbol"])
@@ -389,17 +390,21 @@ class OptionSeries:
             # Обновляем статистику
             self.window.btn_apply.click()
 
+            # Обновляем счетчик
+            if option_result_word == 'loss':
+                jump_to = self.deal_series[self.COUNTERS["type_2"][option_symbol]]["on_loss"] - 1
+            elif option_result_word == 'win':
+                jump_to = self.deal_series[self.COUNTERS["type_2"][option_symbol]]["on_win"] - 1
+            else:
+                # Если "="
+                jump_to = self.COUNTERS["type_2"][option_symbol]
+
+            # Меняем счетчик
+            self.COUNTERS["type_2"][option_symbol] = jump_to
+
             if self.COUNTERS["type_2"][option_symbol] >= len(self.deal_series):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена. (Конец таблицы)")
                 self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
-                return
-
-            if (option_result_word != "=") and (
-                    option_result_word !=
-                    self.deal_series[self.COUNTERS["type_2"][option_symbol]]["result_type"].lower()):
-                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
-                self.window.log_message(
-                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 return
 
             if self.COUNTERS["type_2"][option_symbol] == -1:
@@ -436,20 +441,34 @@ class OptionSeries:
             # Обновляем статистику
             self.window.btn_apply.click()
 
+            # Обновляем счетчик
+            if option_result_word == 'loss':
+                jump_to = self.deal_series[self.COUNTERS["type_3"]]["on_loss"] - 1
+            elif option_result_word == 'win':
+                jump_to = self.deal_series[self.COUNTERS["type_3"]]["on_win"] - 1
+            else:
+                # Если "="
+                jump_to = self.COUNTERS["type_3"]
+
+            if jump_to >= len(self.deal_series):
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена. (Конец таблицы)")
+                self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                return
+
+            if jump_to == -1:
+                # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
+                self.window.log_message(
+                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                return
+
+            # Меняем счетчик
+            self.COUNTERS["type_3"] = jump_to
+
             if self.COUNTERS["type_3"] >= len(self.deal_series):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
                 self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 # Обнуления счетчика режима 4 по этой паре
-                self.COUNTERS["type_3"] = 0
-                # self.COUNTERS["type_3"] = 0
-                return
-
-            if (option_result_word != "=") and (
-                    option_result_word !=
-                    self.deal_series[self.COUNTERS["type_3"]]["result_type"].lower()):
-                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
-                self.window.log_message(
-                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
                 self.COUNTERS["type_3"] = 0
                 return
 
@@ -485,23 +504,33 @@ class OptionSeries:
             # Обновляем статистику
             self.window.btn_apply.click()
 
+            # Обновляем счетчик
+            if option_result_word == 'loss':
+                jump_to = self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["on_loss"] - 1
+            elif option_result_word == 'win':
+                jump_to = self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["on_win"] - 1
+            else:
+                # Если "="
+                jump_to = self.COUNTERS["type_4"][mt4_pair]
+
+            if jump_to >= len(self.deal_series):
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена. (Конец таблицы)")
+                self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                return
+
+            if jump_to == -1:
+                # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
+                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
+                self.window.log_message(
+                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                return
+
+            # Меняем счетчик
+            self.COUNTERS["type_4"][mt4_pair] = jump_to
+
             if self.COUNTERS["type_4"][mt4_pair] >= len(self.deal_series):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
                 self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
-                # Обнуления счетчика режима 4 по этой паре
-                # self.COUNTERS["type_4"][mt4_pair] = 0
-
-                self.COUNTERS["type_4"][mt4_pair] = 0
-                return
-
-            if (option_result_word != "=") and (
-                    option_result_word !=
-                    self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["result_type"].lower()):
-                logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Невыполнение условий результата)")
-                self.window.log_message(
-                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
-                # self.COUNTERS["type_4"][mt4_pair] = 0
-
                 self.COUNTERS["type_4"][mt4_pair] = 0
                 return
 

@@ -16,26 +16,27 @@ import psutil
 import pytz
 import requests
 import telebot
-from PyQt6 import uic
+from PyQt6 import uic, QtCore, QtWidgets
 from PyQt6.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate
 from PyQt6.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics, QFont, QPainter, QColor
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QHeaderView, QMessageBox, \
-    QLineEdit, QComboBox, QLabel
+    QLineEdit, QLabel
 from flask import Flask, request, abort
 
 from loggingfile import logging
 from mm_trading import OptionSeries
 from mm_types import MM_MODES, TYPE_ACCOUNT
 from programm_files import save_money_management_data, load_money_management_data, save_auth_data, \
-    load_auth_data, load_statistic_data
+    load_auth_data, load_statistic_data, CURRENT_VERSION
 from rc_icons import qInitResources
 from scrollbar_style import scrollbarstyle
 from utils import recalculate_summary
 
 qInitResources()
 API_TOKEN = '7251126188:AAGsTPq2F1bWCJ_9DfSQlMH29W-FXQdWcOA'
-CURRENT_VERSION = '1.0.2'  # Текущая версия бота
 CHAT_ID = '-1002258303908'
+
+EXPIRED_DATETIME = datetime(2025, 9, 1)
 
 # Инициализация бота с использованием pyTelegramBotAPI
 bot = telebot.TeleBot(API_TOKEN)
@@ -43,7 +44,7 @@ bot = telebot.TeleBot(API_TOKEN)
 app = Flask(__name__)
 
 # Id для сверки
-ALLOWED_PARTNER_IDS = ["111-116", "777-13269"]
+ALLOWED_PARTNER_IDS = ["111-116", "777-13269", "777-1"]
 
 sys.setrecursionlimit(2000)
 
@@ -51,11 +52,12 @@ MM_TABLE_FIELDS = {
     "Тип ММ": 1,
     "Инвестиция": 2,
     "Экспирация": 3,
-    "Перейти к": 4,
-    "Результат": 5,
+    "WIN": 4,
+    "LOSS": 5,
+    # "Результат": 6,
     # "Фильтр выплат": 5,
     "Тейк профит": 6,
-    "Стоп лосс": 7
+    "Стоп лосс": 7,
 }
 
 
@@ -74,6 +76,10 @@ class TelegramBotThread(QThread):
         return pinned_message
 
     def check_version(self):
+        self.version_check_result.emit(
+            {"status": True, "message": "Вы используете актуальную версию бота."})
+        return
+
         try:
             pinned_message = self.get_last_pinned_message()
             logging.debug(f"Pinned message: {pinned_message}")
@@ -115,52 +121,66 @@ class TelegramBotThread(QThread):
 
 
 def check_aff(aff_id):
-    if aff_id == '13269':
-        return True
+    try:
+        if aff_id == '13269':
+            return True, ""
 
-    def check(url, user_id, aff_id):
-        def remove_first_four_chars(s):
-            # Удаляем первые 4 символа
-            return s[4:]
+        def check(url, user_id, aff_id):
+            def remove_first_four_chars(s):
+                # Удаляем первые 4 символа
+                return s[4:]
 
-        if len(user_id) < 4:
-            user_id = "777-11"
-        if len(aff_id) < 4:
-            aff_id = "777-11"
+            if len(user_id) < 4:
+                user_id = "777-11"
+            if len(aff_id) < 4:
+                aff_id = "777-11"
 
-        # user_id = remove_first_four_chars(user_id)
-        aff_id = remove_first_four_chars(aff_id)
+            # user_id = remove_first_four_chars(user_id)
+            aff_id = remove_first_four_chars(aff_id)
 
-        # Сохраняем текущий ID проекта и chat_id пользователя
-        data = {
-            'user_id': user_id,
-            'aff_id': aff_id
-        }
-        # Отправляем POST-запрос
-        response = requests.post(url, json=data)
+            data = {
+                'user_id': user_id,
+                'aff_id': aff_id
+            }
+            # Отправляем POST-запрос
+            response = requests.post(url, json=data, timeout=4)
 
-        # Проверяем статус-код ответа
-        if response.status_code == 200:
-            # Обрабатываем ответ
-            response_data = response.json()  # Предполагая, что ответ в формате JSON
 
-            if response_data['message'] == 8:
-                return True
+            # Проверяем статус-код ответа
+            if response.status_code == 200:
+                # Обрабатываем ответ
+                response_data = response.json()  # Предполагая, что ответ в формате JSON
 
+                if response_data['message'] == 8:
+                    return True
+
+                else:
+                    return False
             else:
-                return False
-        return False
+                print(response.text)
 
-    url_id_pairs = [["777-13269", "http://ute.limited/ajax/check_aff_trade_id.php"],
-                    ["777-116", "http://ute.limited/ajax/check_aff_id.php"]]
+            return False
 
-    rezs = []
-    for own_id, url in url_id_pairs:
-        rezs.append(check(url, aff_id, own_id))
+        url_id_pairs = [
+            ["777-13269", "https://ultimatetradingexperience.limited/ajax/check_aff_trade_id.php"],
+            ["777-116", "https://ultimatetradingexperience.limited/ajax/check_aff_id.php"]
+        ]
 
-    if rezs[0] or rezs[1]:
-        return True
-    return False
+        rezs = []
+        for own_id, url in url_id_pairs:
+            rezs.append(check(url, aff_id, own_id))
+
+        if rezs[0] or rezs[1]:
+            return True, ""
+        elif datetime.now() <= EXPIRED_DATETIME:
+            logging.debug("Allow before 1st september")
+            return True, ""
+        elif datetime.now() > EXPIRED_DATETIME:
+            return False, "expired"
+        return False, "wrong"
+    except Exception as e:
+        logging.exception(e)
+        return False, "error"
 
 
 def find_free_port(start_port=80, max_attempts=5):
@@ -248,6 +268,7 @@ class MainWindow(QMainWindow):
         icon_path = os.path.join(applicationPath, 'icon.ico')
         self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle('UTE Connect')
+        QtWidgets.QApplication.instance().focusChanged.connect(self.on_focusChanged)
 
         self.pushButton.clicked.connect(self.start_client_thread)
         self.bot = None
@@ -315,6 +336,7 @@ class MainWindow(QMainWindow):
         self.trades_table.setStyleSheet(scrollbarstyle(margins=True))
         self.manage_table.setStyleSheet(scrollbarstyle())
         self.textBrowser.setStyleSheet(scrollbarstyle())
+        self.textBrowser.setOpenExternalLinks(True)
         self.textBrowser_2.setStyleSheet(scrollbarstyle())
 
         self.setStatusBar(None)
@@ -327,6 +349,16 @@ class MainWindow(QMainWindow):
 
         # Обновляем статистику
         self.btn_apply.click()
+
+    @QtCore.pyqtSlot("QWidget*", "QWidget*")
+    def on_focusChanged(self, old, now):
+        try:
+            if self.token_edit == now:
+                self.token_edit.setEchoMode(QLineEdit.EchoMode.Normal)
+            elif self.token_edit == old:
+                self.token_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        except Exception:
+            traceback.print_exc()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -449,6 +481,7 @@ class MainWindow(QMainWindow):
                 logging.error(error_text)
                 last_line = error_text.strip().split('\n')[-1]
                 self.log_message(f'{url} нет соединения: {last_line}')
+        logging.info(f"Проверка ute_connect: {verified=}")
         return verified
 
     def ute_open(self, data):
@@ -477,59 +510,70 @@ class MainWindow(QMainWindow):
         flask_thread.start()
 
     def start_client_thread(self):
-        if self.allowToRunBot is False:
-            QMessageBox.warning(self, "Внимание", "Перед запуском, примените настройки.")
-            return
+        try:
+            if self.allowToRunBot is False:
+                QMessageBox.warning(self, "Внимание", "Перед запуском, примените настройки.")
+                return
 
-        if self.is_connected is False:
-            if self.check_field_complete():
-                logging.info('Fields complete')
-                # Замена метода авторизации на проверку кодов
-                verified1 = self.ute_connect()
-                verified2 = check_aff(self.userid_edit.text().strip())
-                if verified1 or verified2:
-                    auth_data = {
-                        "selected_type_account": self.type_account.currentText(),
-                        "token": self.token_edit.text().strip(),
-                        "user_id": self.userid_edit.text().strip(),
-                        "url": self.urlEdit.text().strip(),
-                        "mt4_url": self.mt4Url.text().strip()
-                    }
-                    self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
-                    save_auth_data(auth_data)
+            if self.is_connected is False:
+                if self.check_field_complete():
+                    logging.info('Fields complete')
+                    # Замена метода авторизации на проверку кодов
+                    verified1 = self.ute_connect()
+                    verified2, verify_text = check_aff(self.userid_edit.text().strip())
+                    if 'error' in verify_text:
+                        logging.warning('Отказано. Нет соединения с платформой.')
+                        self.log_message('Отказано. Нет соединения с платформой.')
+                        return
+                    elif 'expired' in verify_text:
+                        logging.warning('Тестовый период окончен, за дополнительной информацией обратитесь в telegram <a href="https://t.me/shulgin_gennadiy">https://t.me/shulgin_gennadiy</a>')
+                        self.log_message('Тестовый период окончен, за дополнительной информацией обратитесь в telegram <a style="color: lightblue;" href="https://t.me/shulgin_gennadiy">https://t.me/shulgin_gennadiy</a>')
+                        return
+                    if verified1 or verified2:
+                        auth_data = {
+                            "selected_type_account": self.type_account.currentText(),
+                            "token": self.token_edit.text().strip(),
+                            "user_id": self.userid_edit.text().strip(),
+                            "url": self.urlEdit.text().strip(),
+                            "mt4_url": self.mt4Url.text().strip()
+                        }
+                        self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
+                        save_auth_data(auth_data)
 
-                    if self.bot:
-                        self.connect_to_server()
-                    self.is_connected = True
-                    self.pushButton.setEnabled(False)
-                    self.pushButton.setStyleSheet("""
-                    QPushButton{
-                        background-color: #192142;
-                        border-radius: 0px; 
-                        color: #8996c7;
-                        border-radius: 5px;
-                        padding: 8px;
-                        font-size: 12px;
-                    }
-                    """)
-                    # self.log_message('Данные последней успешной авторизации сохранены.')
+                        if self.bot:
+                            self.connect_to_server()
+                        self.is_connected = True
+                        self.pushButton.setEnabled(False)
+                        self.pushButton.setStyleSheet("""
+                        QPushButton{
+                            background-color: #192142;
+                            border-radius: 0px; 
+                            color: #8996c7;
+                            border-radius: 5px;
+                            padding: 8px;
+                            font-size: 12px;
+                        }
+                        """)
+                        # self.log_message('Данные последней успешной авторизации сохранены.')
 
+                    else:
+                        logging.warning('Отказано. Вы не имеете доступ!')
+                        self.log_message('Отказано. Вы не имеете доступ!')
                 else:
-                    logging.warning('Отказано. Вы не имеете доступ!')
-                    self.log_message('Отказано. Вы не имеете доступ!')
-            else:
-                logging.warning('Field (USerId or Token or url) don\'t complete4')
-                self.log_message('Отказано. Заполните поля UserId и Token и url!')
-        else:  # inserted
-            self.log_message('Остановка сервера...')
-            logging.info('CLOSING server')
-            if self.bot:
-                self.bot.close_connection()
-            self.bot = None
-            self.pushButton.setText('Запустить')
-            logging.info('SERVER close')
-            self.is_connected = False
-            self.log_message('Сервер остановлен')
+                    logging.warning('Field (USerId or Token or url) don\'t complete4')
+                    self.log_message('Отказано. Заполните поля UserId и Token и url!')
+            else:  # inserted
+                self.log_message('Остановка сервера...')
+                logging.info('CLOSING server')
+                if self.bot:
+                    self.bot.close_connection()
+                self.bot = None
+                self.pushButton.setText('Запустить')
+                logging.info('SERVER close')
+                self.is_connected = False
+                self.log_message('Сервер остановлен')
+        except Exception as e:
+            logging.exception(e)
 
     def log_message(self, message):
         # Получаем текущее время в часовом поясе UTC+3
@@ -736,15 +780,17 @@ class MainWindow(QMainWindow):
                             mm_type_val=item["mm_type"],
                             profit_val=item["take_profit"],
                             stop_val=item["stop_loss"],
-                            jump_to=item.get("jump_to", cnt),
-                            result_val=item["result_type"], skip_check=True)
+                            on_win=item.get("on_win", cnt),
+                            on_loss=item.get("on_loss", cnt),
+                            # result_val=item["result_type"],
+                            skip_check=True)
                 cnt += 1
             except Exception:
                 logging.exception("Exception occurred")
 
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
                mm_type_val=MM_MODES[1],
-               profit_val="100000", stop_val="100", jump_to=1, result_val='WIN', skip_check=False):
+               profit_val="100000", stop_val="100", on_win=1, on_loss=1, result_val='WIN', skip_check=False):
         try:
             rowCount = self.manage_table.rowCount()
             self.manage_table.insertRow(rowCount)
@@ -775,7 +821,7 @@ class MainWindow(QMainWindow):
                     return
 
             # поле результат
-            combo = QComboBox()
+            '''combo = QComboBox()
             if self.selected_mm_mode != 1:
                 combo.addItems(["WIN", "LOSS"])
                 combo.setStyleSheet("""
@@ -837,7 +883,7 @@ class MainWindow(QMainWindow):
                 }
                 """)
             combo.setCurrentText(result_val)
-            self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Результат"], combo)
+            self.manage_table.setCellWidget(rowCount, MM_TABLE_FIELDS["Результат"], combo)'''
 
             '''# поле мм
             combo_mm = QLineEdit()
@@ -907,8 +953,8 @@ class MainWindow(QMainWindow):
 
             # Установка пустых значений
             for i in range(1, self.manage_table.columnCount()):
-                if i in [MM_TABLE_FIELDS["Результат"]]:
-                    continue
+                # if i in [MM_TABLE_FIELDS["Результат"]]:
+                #    continue
 
                 item = QLineEdit()
                 item.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -930,9 +976,12 @@ class MainWindow(QMainWindow):
                     item.setText(mm_type_val)
                     # Подключаем сигнал изменения ячейки к слоту
                     item.textChanged.connect(self.update_mm_table)
-                elif i == MM_TABLE_FIELDS["Перейти к"]:
+                elif i == MM_TABLE_FIELDS["WIN"]:
                     item.setValidator(self.digit_validator)
-                    item.setText(str(jump_to))
+                    item.setText(str(on_win))
+                elif i == MM_TABLE_FIELDS["LOSS"]:
+                    item.setValidator(self.digit_validator)
+                    item.setText(str(on_loss))
                 else:
                     item.setValidator(self.digit_validator)
                 item.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
@@ -1054,28 +1103,43 @@ class MainWindow(QMainWindow):
                                                 f"Для выбранного вами режима необходимо настроить хотя бы 2 строки")
                             return
 
-                # Проверка "Перейти к"
-                jump_to_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Перейти к"])
-                if jump_to_item and int(jump_to_item.text().strip()) > rowCount:
+                # Проверка "WIN"
+                on_win_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["WIN"])
+                if on_win_item and int(on_win_item.text().strip()) > rowCount:
                     QMessageBox.warning(self, "Ошибка",
-                                        f'Параметр "Перейти к" выходит за диапазон таблицы в строке {row + 1}')
+                                        f'Параметр WIN выходит за диапазон таблицы в строке {row + 1}')
                     return
 
-                if jump_to_item and row != 0 and int(jump_to_item.text().strip()) == (row + 1):
+                if on_win_item and row != 0 and int(on_win_item.text().strip()) == (row + 1):
                     QMessageBox.warning(self, "Ошибка",
-                                        f'Параметр "Перейти к" не должен указывать на текущую строку в строке {row + 1}')
+                                        f'Параметр WIN не должен указывать на текущую строку в строке {row + 1}')
                     return
 
-                if jump_to_item:
-                    data[row]["jump_to"] = int(jump_to_item.text().strip())
+                if on_win_item:
+                    data[row]["on_win"] = int(on_win_item.text().strip())
+
+                # Проверка "WIN"
+                on_loss_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["LOSS"])
+                if on_loss_item and int(on_loss_item.text().strip()) > rowCount:
+                    QMessageBox.warning(self, "Ошибка",
+                                        f'Параметр LOSS выходит за диапазон таблицы в строке {row + 1}')
+                    return
+
+                if on_loss_item and row != 0 and int(on_loss_item.text().strip()) == (row + 1):
+                    QMessageBox.warning(self, "Ошибка",
+                                        f'Параметр LOSS не должен указывать на текущую строку в строке {row + 1}')
+                    return
+
+                if on_loss_item:
+                    data[row]["on_loss"] = int(on_loss_item.text().strip())
 
                 # Проверка результата
-                result_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Результат"])
+                """result_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Результат"])
                 if row > 0:
                     if result_item and result_item.currentText().strip() not in ["WIN", "LOSS"]:
                         QMessageBox.warning(self, "Ошибка", f"Результат должен быть WIN или LOSS в строке {row + 1}")
                         return
-                data[row]["result_type"] = result_item.currentText().strip()
+                data[row]["result_type"] = result_item.currentText().strip()"""
 
                 # Проверка Тейк профит и Стоп лосс
                 for col in [MM_TABLE_FIELDS["Тейк профит"], MM_TABLE_FIELDS["Стоп лосс"]]:
@@ -1110,9 +1174,10 @@ class MainWindow(QMainWindow):
             self.manage_table.removeRow(self.manage_table.rowCount() - 1)
 
         if self.manage_table.rowCount() > 0:
-            combo = self.manage_table.cellWidget(self.manage_table.rowCount() - 1, MM_TABLE_FIELDS["Перейти к"])
+            combo = self.manage_table.cellWidget(self.manage_table.rowCount() - 1, MM_TABLE_FIELDS["WIN"])
             combo.setText("0")
-
+            combo = self.manage_table.cellWidget(self.manage_table.rowCount() - 1, MM_TABLE_FIELDS["LOSS"])
+            combo.setText("0")
         # Сохраняем данные после изменения
 
         # self.saveData(nide_notification=True)
@@ -1120,151 +1185,48 @@ class MainWindow(QMainWindow):
     def update_mm_table(self, text):
         if not text:
             return
-        # Когда значение в одном из комбобоксов изменится, обновляем все строки в этом столбце
+
+        # Обновляем все строки в столбце "Тип ММ"
         for row in range(self.manage_table.rowCount()):
-            combo = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])  # Получаем QComboBox из ячейки
-            combo.setText(text)  # Устанавливаем тот же текст во всех строках
+            combo = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])
+            combo.setText(text)
 
-        # При режиме 0, отключаем поле Результат и другие
+        # Определяем, следует ли отключать элементы в зависимости от режима
+        disable_fields = text in [MM_MODES[0], MM_MODES[1]]
 
-        for row in range(0, self.manage_table.rowCount()):
+        for row in range(self.manage_table.rowCount()):
+            for col in range(1, self.manage_table.columnCount()):
+                widget = self.manage_table.cellWidget(row, col)
 
-            if row == 0 and text in [MM_MODES[1], MM_MODES[0]]:
-                # Отключаем результат и перейти к
-                for i in range(1, self.manage_table.columnCount()):
-                    if i in [MM_TABLE_FIELDS["Результат"]] and text in [MM_MODES[1], MM_MODES[0]]:
-                        combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
-                        combo_result.setDisabled(True)
-                        combo_result.setStyleSheet("""
-                                            QComboBox {
-                                                background-color: #192142;border-radius: 0px; color: #8996c7;
-                                            }
-                                            QComboBox::drop-down{
-                                                image: url(icons/arrow.ico);
-                                                width:12px;
-                                                margin-right: 8px;
-                                            }
-                                            QComboBox QListView {
-                                                background-color: rgb(18, 26, 61);
-                                                outline: 0px;
-                                                padding: 2px;
-                                                border-radius: 5px;
-                                                border: none;
-                                            }
-                                            QComboBox QListView:item {
-                                            padding: 5px;
-                                            border-radius: 3px;
-                                            border-left: 2px solid rgb(18, 26, 61);
-                                            }
-                                            QComboBox QListView:item:hover {
-                                            background: rgb(26,38,85);
-                                            border-left: 2px solid rgb(33,62,118);
-                                            }
-                                            """)
-
-                    if i in [MM_TABLE_FIELDS["Перейти к"]] and text in [MM_MODES[1], MM_MODES[0]]:
-                        combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
-                        combo_result.setDisabled(True)
-                        combo_result.setStyleSheet("""
-                                            QLineEdit {
-                                                background-color: #192142;border-radius: 0px; color: #8996c7;
-                                            }
-                                            """)
-
-                continue
-
-            for i in range(1, self.manage_table.columnCount()):
-                if i in [MM_TABLE_FIELDS["Результат"]] and text in [MM_MODES[1], MM_MODES[0]]:
-                    combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
-                    combo_result.setDisabled(True)
-                    combo_result.setStyleSheet("""
-                                        QComboBox {
-                                            background-color: #192142;border-radius: 0px; color: #8996c7;
-                                        }
-                                        QComboBox::drop-down{
-                                            image: url(icons/arrow.ico);
-                                            width:12px;
-                                            margin-right: 8px;
-                                        }
-                                        QComboBox QListView {
-                                            background-color: rgb(18, 26, 61);
-                                            outline: 0px;
-                                            padding: 2px;
-                                            border-radius: 5px;
-                                            border: none;
-                                        }
-                                        QComboBox QListView:item {
-                                        padding: 5px;
-                                        border-radius: 3px;
-                                        border-left: 2px solid rgb(18, 26, 61);
-                                        }
-                                        QComboBox QListView:item:hover {
-                                        background: rgb(26,38,85);
-                                        border-left: 2px solid rgb(33,62,118);
-                                        }
-                                        """)
-
-                elif i not in [MM_TABLE_FIELDS["Результат"]] and text in MM_MODES[0]:
-                    line_edit_element = self.manage_table.cellWidget(row, i)
-
-                    line_edit_element.setDisabled(True)
-                    line_edit_element.setStyleSheet("""
-                    QLineEdit {
-                        background-color: #192142;border-radius: 0px; color: #8996c7;
-                    }
-                    """)
-
-                if i in [MM_TABLE_FIELDS["Результат"]] and text not in [MM_MODES[1], MM_MODES[0]]:
-                    combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
-                    combo_result.setDisabled(False)
-                    combo_result.setStyleSheet("""
-                    QComboBox {
-                        background-color: #121a3d;border-radius: 0px;
-                    }
-                    QComboBox:on {
-                        background-color: rgb(25, 34, 74);border-radius: 0px;
-                    }
-                    QComboBox::drop-down{
-                        image: url(icons/arrow.ico);
-                        width:12px;
-                        margin-right: 8px;
-                    }
-                    QComboBox QListView {
-                        background-color: rgb(25, 34, 74);
-                        outline: 0px;
-                        padding: 2px;
-                        border-radius: 5px;
-                        border: none;
-                    }
-                    QComboBox QListView:item {
-                    padding: 5px;
-                    border-radius: 3px;
-                    border-left: 2px solid rgb(18, 26, 61);
-                    }
-                    QComboBox QListView:item:hover {
-                    background: rgb(26,38,85);
-                    border-left: 2px solid rgb(33,62,118);
-                    }
-                    """)
-
-                elif i not in [MM_TABLE_FIELDS["Результат"]] and text not in MM_MODES[0]:
-                    line_edit_element = self.manage_table.cellWidget(row, i)
-
-                    line_edit_element.setDisabled(False)
-                    line_edit_element.setStyleSheet("""
-                    QLineEdit {
-                        background-color: #121a3d;border-radius: 0px;
-                    }
-                    """)
-
-                if i in [MM_TABLE_FIELDS["Перейти к"]] and text in [MM_MODES[1], MM_MODES[0]]:
-                    combo_result = self.manage_table.cellWidget(row, i)  # Получаем QComboBox из ячейки
-                    combo_result.setDisabled(True)
-                    combo_result.setStyleSheet("""
-                                        QLineEdit {
-                                            background-color: #192142;border-radius: 0px; color: #8996c7;
-                                        }
-                                        """)
+                if col in [MM_TABLE_FIELDS["WIN"], MM_TABLE_FIELDS["LOSS"]]:
+                    widget.setDisabled(disable_fields)
+                    if disable_fields:
+                        widget.setStyleSheet("""
+                            QLineEdit {
+                                background-color: #192142;border-radius: 0px; color: #8996c7;
+                            }
+                        """)
+                    else:
+                        widget.setStyleSheet("""
+                                QLineEdit {
+                                    background-color: #121a3d;border-radius: 0px;
+                                }
+                            """)
+                else:
+                    if row > 0:
+                        widget.setDisabled(text == MM_MODES[0])
+                        if text == MM_MODES[0]:
+                            widget.setStyleSheet("""
+                                    QLineEdit {
+                                        background-color: #192142;border-radius: 0px; color: #8996c7;
+                                    }
+                                """)
+                        else:
+                            widget.setStyleSheet("""
+                                    QLineEdit {
+                                        background-color: #121a3d;border-radius: 0px;
+                                    }
+                                """)
 
 
 class TransparentText(QLabel):

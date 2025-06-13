@@ -95,7 +95,7 @@ margin-bottom: 50px;
                     </string>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="tab_authorization">
        <property name="sizePolicy">
@@ -111,6 +111,99 @@ margin-bottom: 50px;
         <property name="spacing">
          <number>15</number>
         </property>
+        <item row="5" column="0">
+         <widget class="QPushButton" name="pushButton">
+          <property name="cursor">
+           <cursorShape>PointingHandCursor</cursorShape>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">QPushButton {
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 8px;
+                                font-size: 12px;
+                                }
+                                QPushButton::hover {
+                                cursor: pointer;
+                                }
+                            </string>
+          </property>
+          <property name="text">
+           <string>Запустить</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1" rowspan="9">
+         <widget class="QTextBrowser" name="textBrowser">
+          <property name="styleSheet">
+           <string notr="true">QTextBrowser {
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 5px;
+                                font-size: 12px;
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: none;         /* Убираем все фоны, включая текстуры */
+	width: 0px;
+}
+</string>
+          </property>
+          <property name="placeholderText">
+           <string>Здесь будут появляться логи.</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLineEdit" name="urlEdit">
+          <property name="maximumSize">
+           <size>
+            <width>500</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+
+                                border-radius: 5px;
+                                padding: 8px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="text">
+           <string>wss://1ute.ru:443/wss</string>
+          </property>
+          <property name="placeholderText">
+           <string>UTE URL</string>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="0">
+         <widget class="QSpinBox" name="spinBox">
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+                                border-radius: 5px;
+                                padding: 5px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="value">
+           <number>80</number>
+          </property>
+         </widget>
+        </item>
         <item row="4" column="0">
          <widget class="QComboBox" name="type_account">
           <property name="styleSheet">
@@ -177,6 +270,32 @@ QComboBox:on{
           </item>
          </widget>
         </item>
+        <item row="1" column="0">
+         <widget class="QLineEdit" name="mt4Url">
+          <property name="maximumSize">
+           <size>
+            <width>500</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">
+                                background-color: rgb(18, 26, 61);
+                                color: white;
+
+                                border-radius: 5px;
+                                padding: 8px;
+                                font-size: 12px;
+                            </string>
+          </property>
+          <property name="text">
+           <string>http://127.0.0.1</string>
+          </property>
+          <property name="placeholderText">
+           <string>MT4 URL</string>
+          </property>
+         </widget>
+        </item>
         <item row="2" column="0">
          <widget class="QLineEdit" name="userid_edit">
           <property name="maximumSize">
@@ -217,6 +336,9 @@ QComboBox:on{
                                 font-size: 12px;
                             </string>
           </property>
+          <property name="echoMode">
+           <enum>QLineEdit::EchoMode::Password</enum>
+          </property>
           <property name="placeholderText">
            <string>Token</string>
           </property>
@@ -241,122 +363,6 @@ QComboBox:on{
           </property>
           <property name="displayFormat">
            <string>hh:mm:ss</string>
-          </property>
-         </widget>
-        </item>
-        <item row="7" column="0">
-         <widget class="QSpinBox" name="spinBox">
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>0</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 5px;
-                                font-size: 12px;
-                            </string>
-          </property>
-          <property name="value">
-           <number>80</number>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="0">
-         <widget class="QPushButton" name="pushButton">
-          <property name="cursor">
-           <cursorShape>PointingHandCursor</cursorShape>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">QPushButton {
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 8px;
-                                font-size: 12px;
-                                }
-                                QPushButton::hover {
-                                cursor: pointer;
-                                }
-                            </string>
-          </property>
-          <property name="text">
-           <string>Запустить</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="0">
-         <widget class="QLineEdit" name="urlEdit">
-          <property name="maximumSize">
-           <size>
-            <width>500</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-
-                                border-radius: 5px;
-                                padding: 8px;
-                                font-size: 12px;
-                            </string>
-          </property>
-          <property name="placeholderText">
-           <string>UTE URL</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1" rowspan="9">
-         <widget class="QTextBrowser" name="textBrowser">
-          <property name="styleSheet">
-           <string notr="true">QTextBrowser {
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-                                border-radius: 5px;
-                                padding: 5px;
-                                font-size: 12px;
-}
-
-QScrollBar:vertical, QScrollBar:horizontal {
-    background: none;         /* Убираем все фоны, включая текстуры */
-	width: 0px;
-}
-</string>
-          </property>
-          <property name="placeholderText">
-           <string>Здесь будут появляться логи.</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
-         <widget class="QLineEdit" name="mt4Url">
-          <property name="maximumSize">
-           <size>
-            <width>500</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">
-                                background-color: rgb(18, 26, 61);
-                                color: white;
-
-                                border-radius: 5px;
-                                padding: 8px;
-                                font-size: 12px;
-                            </string>
-          </property>
-          <property name="text">
-           <string>http://127.0.0.1</string>
-          </property>
-          <property name="placeholderText">
-           <string>MT4 URL</string>
           </property>
          </widget>
         </item>
@@ -498,12 +504,12 @@ QScrollBar:vertical, QScrollBar:horizontal {
           </column>
           <column>
            <property name="text">
-            <string>Перейти к строке №</string>
+            <string>WIN</string>
            </property>
           </column>
           <column>
            <property name="text">
-            <string>Результат</string>
+            <string>LOSS</string>
            </property>
           </column>
           <column>

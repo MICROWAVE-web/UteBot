@@ -6,7 +6,9 @@ from pathlib import Path
 
 from platformdirs import *
 
-appname = "UTEConnect"
+CURRENT_VERSION = '1.0.3'  # Текущая версия бота
+
+appname = f"UTEConnect_{CURRENT_VERSION}"
 
 appauthor = "UTEConnect"
 
