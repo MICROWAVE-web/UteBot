@@ -12,7 +12,7 @@ QScrollBar::handle:vertical {{
     background-color: #28368a;                    
     min-height: 5px;
     border-radius: 4px;
-    /* border-image: url(icons/scroll.png) 0 0 0 0;      /* <---- установите свое изображение */ 
+
 }}
 QScrollBar::sub-line:vertical {{
     margin: 0px 0px 0px 0px;
@@ -41,7 +41,6 @@ QScrollBar::handle:horizontal {{
     background-color: #28368a;                    
     min-height: 5px;
     border-radius: 4px;
-    /* border-image: url(icons/scroll.png) 0 0 0 0;       <---- установите свое изображение */ 
 }}
 QScrollBar::sub-line:horizontal {{
     margin: 0px 0px 0px 0px;
@@ -72,3 +71,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
     background: none;
 }}
 '''
+
+if __name__ == "__main__":
+    print(scrollbarstyle())

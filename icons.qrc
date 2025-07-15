@@ -1,5 +1,6 @@
 <RCC>
   <qresource>
+    <file>icons/pill.ico</file>
     <file>icons/arrow-left.ico</file>
     <file>icons/arrow-right.ico</file>
     <file>icons/arrow.ico</file>

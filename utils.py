@@ -61,7 +61,7 @@ time_intervals = [
     ("20:55:00", "21:01:59"),
     ("21:55:00", "22:01:59"),
     ("22:55:00", "23:01:59"),
-    #("23:25:00", "23:31:59"),
+    # ("23:25:00", "23:31:59"),
     ("23:30:00", "23:59:59"),
 ]
 
@@ -108,6 +108,7 @@ def check_weekend_overlap(end_time):
 
 # Функция для проверки доступности в заданном интервале
 def check_availability_time_range(serial_start_points: List[timedelta]):
+    return True, ""
     """Проверка доступности для открытия опциона."""
     # Получаем текущее время в часовом поясе UTC+3
     current_time = datetime.now(pytz.utc)
@@ -157,7 +158,7 @@ def convert_datetime_format(input_time):
 
 def recalculate_summary(data):
     try:
-        trades = data["trades"]
+        trades = [t for t in data["trades"] if t.get("status") != "pending"]
 
         total = len(trades)
         profit = 0
@@ -304,6 +305,41 @@ def add_option_to_statistic(option_data, additional_data):
             "loss_refund": loss_refund,
         },
     )
+
+    save_statistic_data(statistic_data)
+
+
+def add_pending_option_to_statistic(option_id, pending_data):
+    option_id = str(option_id)
+    """Добавляет временную запись в статистику."""
+    statistic_data = load_statistic_data()
+
+    for sd in statistic_data["trades"]:
+        if sd["option_id"] == option_id:
+            return False
+
+    # Создаем временную запись
+    pending_record = {
+        "option_id": option_id,
+        "status": "pending",
+        **pending_data
+    }
+    statistic_data["trades"].append(pending_record)
+    save_statistic_data(statistic_data)
+    return True
+
+
+def update_option_in_statistic(option_id, real_data):
+    option_id = str(option_id)
+    """Обновляет временную запись реальными данными."""
+    statistic_data = load_statistic_data()
+
+    # Находим и обновляем запись
+    for trade in statistic_data["trades"]:
+        if trade.get("option_id") == option_id and trade.get("status") == "pending":
+            trade.update(real_data)
+            trade["status"] = "completed"
+            break
 
     save_statistic_data(statistic_data)
 
