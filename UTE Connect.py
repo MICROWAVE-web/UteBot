@@ -1,23 +1,20 @@
-# Decompiled with PyLingual (https://pylingual.io)rgb(18,26,61)
-# Internal filename: main.py
-# Bytecode version: 3.12.0rc2 (3531)
-# Source timestamp: 1970-01-01 00:00:00 UTC (0)
-
 import json
 import os
 import re
 import signal
+import subprocess
 import sys
 import time
 import traceback
 from datetime import datetime, timedelta
 
+import httpx
 import psutil
 import pytz
 import requests
 import telebot
 from PyQt5 import QtCore, QtWidgets, uic
-from PyQt5.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate
+from PyQt5.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDate, QTranslator, QLocale
 from PyQt5.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics, QFont, QPainter, QColor
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QHeaderView, QMessageBox, \
     QLineEdit, QLabel, QGroupBox, QHBoxLayout, QCheckBox, QVBoxLayout, QWidget, QScrollArea, QTimeEdit, QFrame, \
@@ -26,11 +23,12 @@ from flask import Flask, request, abort
 
 from loggingfile import logging
 from mm_trading import OptionSeries
-from mm_types import MM_MODES, TYPE_ACCOUNT
+from mm_types import MM_MODES
 from news import NewsFilterDialog, NewsUpdater
 from programm_files import save_money_management_data, load_money_management_data, save_auth_data, \
     load_auth_data, load_statistic_data, CURRENT_VERSION, load_additional_settings_data, save_additional_settings_data, \
-    load_news_settings, save_news_settings, load_news
+    load_news_settings, save_news_settings, load_news, load_language, save_language, logs_folder, \
+    save_statistic_data
 from rc_icons import qInitResources
 from scrollbar_style import scrollbarstyle
 from utils import recalculate_summary
@@ -61,6 +59,11 @@ MM_TABLE_FIELDS = {
     # "Фильтр выплат": 5,
     "Тейк профит": 6,
     "Стоп лосс": 7,
+}
+
+localisations = {
+    'ru': QLocale(QLocale.Russian, QLocale.Russia),
+    'en': QLocale(QLocale.English, QLocale.UnitedStates)
 }
 
 
@@ -201,6 +204,18 @@ def is_port_in_use(p):
     return False
 
 
+def open_folder(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    if sys.platform == 'win32':
+        os.startfile(path)
+    elif sys.platform == 'darwin':
+        subprocess.Popen(['open', path])
+    else:  # Linux
+        subprocess.Popen(['xdg-open', path])
+
+
 class FlaskThread(QThread):
     data_received = pyqtSignal(dict)
 
@@ -241,20 +256,22 @@ def query_example():
     if pair is None or direct is None:
         return abort(400, 'Record not found')
 
-    # Дублируем запрос на другой порт
-    try:
-        logging.debug(f"Дублируем запрос на 'http://localhost:{port + 1}/?pair={pair}&direct={direct}' ")
-        duplicate_url = f"http://localhost:{port + 1}/?pair={pair}&direct={direct}"
-        response = requests.get(duplicate_url, timeout=0.5, proxies={})  # Отправляем дубликат
-        print(f"Дубликат успешно отправлен на {duplicate_url}, статус: {response.status_code}")
-        print(response.text)
-    except requests.exceptions.RequestException as e:
-        print(f"Ошибка при дублировании запроса!")
-        logging.exception("Exception occurred")
+        # Асинхронно дублируем запрос
+        async def duplicate():
+            duplicate_url = f"http://localhost:{port + 1}/?pair={pair}&direct={direct}"
+            try:
+                async with httpx.AsyncClient(timeout=0.5) as client:
+                    response = await client.get(duplicate_url)
+                    print(f"Дубликат успешно отправлен на {duplicate_url}, статус: {response.status_code}")
+            except Exception as e:
+                traceback.print_exc()
+                print(f"Ошибка при дублировании запроса: {e}")
 
+        # Запускаем асинхронный запрос в фоне
+        # asyncio.create_task(duplicate())
     # Отправляем данные в основное приложение
     flask_thread.send_data_to_qt({'pair': pair, 'direct': direct})
-
+    print(f"Flask got a signal: {pair}:{direct}")
     return f'{pair}:{direct}'
 
 
@@ -272,6 +289,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('UTE Connect')
         QtWidgets.QApplication.instance().focusChanged.connect(self.on_focusChanged)
 
+        # Языки
+        self.translator = QtCore.QTranslator()
+        self.current_language = lang  # например
+
         self.startButton.clicked.connect(self.start_client_thread)
         self.stopButton.clicked.connect(self.stop_client_thread)
         self.bot = None
@@ -279,23 +300,26 @@ class MainWindow(QMainWindow):
         self.is_connected = False
         self.last_recv = None
 
+        self.flask_running = False
+
         # Режим ММ
         self.selected_mm_mode = 0
 
         # Статистика
         self.btn_apply.clicked.connect(self.update_all_statistic)  # Привязываем кнопку
+        self.delete_stats.clicked.connect(self.delete_statistic)  # Привязываем кнопку
 
         # Менеджмент
         # Подключаем кнопки к функциям
         self.investment_type = None  # Тип инвестиций (None, "number", "percent")
 
-        self.addButton.clicked.connect(self.addRow)
+        self.addButton.clicked.connect(lambda: self.addRow(add_copy=True))
         self.saveButton.clicked.connect(self.saveData)
         self.haveUnsavedRows = False
         self.allowToRunBot = False
 
         # Регулярное выражение для проверки инвестиции (разрешены цифры и знак %)
-        self.investment_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+(\.\d{1})$"))
+        self.investment_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+(\.\d{2})$"))
         self.digit_validator = QRegularExpressionValidator(QRegularExpression(r"^\d+?$"))
         self.expiration_validator = QRegularExpressionValidator(QRegularExpression(r"^(\d{2}:\d{2}:\d{2}|\d+)$"))
         self.type_mm = QRegularExpressionValidator(QRegularExpression(r"\d{1}"))
@@ -313,22 +337,53 @@ class MainWindow(QMainWindow):
         self.deleteButton.clicked.connect(self.deleteClicked)
         self.deleteButton.setCursor(Qt.CursorShape.PointingHandCursor)
 
+        # Локализация
+        self.dateTimeEdit_1.setLocale(localisations[lang])
+        self.dateTimeEdit_2.setLocale(localisations[lang])
+
         # Проверка версии
         self.check_version()
+
+        self.ACCOUNT_LABELS = {
+            'real_rub': self.tr("Реальный RUB"),
+            'real_dollar': self.tr("Реальный USD"),
+            'demo': self.tr("Демо аккаунт")
+        }
+
+        self.STATISCTIC_ACCOUNT_LABELS = {
+            'real_rub': self.tr("Реальный RUB"),
+            'real_dollar': self.tr("Реальный USD"),
+            'demo': self.tr("Демо аккаунт"),
+            'any': self.tr("Любой")
+        }
+
+        self.language_combo.addItem("Русский", userData="ru")
+        self.language_combo.addItem("English", userData="en")
+        self.language_combo.currentIndexChanged.connect(self.on_language_changed)
+        self.set_combo_by_data(self.language_combo, lang)
+
+        self.type_account.clear()
+        for key, label in self.ACCOUNT_LABELS.items():
+            self.type_account.addItem(label, userData=key)
+
+        self.type_account_statistic.clear()
+        for key, label in self.STATISCTIC_ACCOUNT_LABELS.items():
+            self.type_account_statistic.addItem(label, userData=key)
+        self.set_combo_by_data(self.type_account_statistic, 'any')
+        # self.type_account.currentData()
 
         # Создание первой строки
         if not load_money_management_data():
             self.addRow()
-
-        self.selected_type_account = None
 
         auth_data = load_auth_data()
         if auth_data:
             self.token_edit.setText(auth_data['token'])
             self.userid_edit.setText(auth_data['user_id'])
             self.urlEdit.setText(auth_data['url'])
-            self.type_account.setCurrentText(auth_data['selected_type_account'])
-            self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
+
+            self.set_combo_by_data(self.type_account, auth_data['selected_type_account'])
+            self.account_type = self.type_account.currentData()
             self.mt4Url.setText(auth_data.get("mt4_url", "http://127.0.0.1"))
             # self.log_message('Данные последней успешной авторизации установлены.')
 
@@ -338,14 +393,17 @@ class MainWindow(QMainWindow):
         self.setStatusBar(None)
 
         # Добавляем текст поверх всех виджетов
-        self.overlay_text = TransparentText(f'{self.tr("Версия")}: {CURRENT_VERSION}', self)
+        self.overlay_text = TransparentText(self.tr("Версия") + f': {CURRENT_VERSION}', self)
         self.update_text_position()  # Устанавливаем позицию текста
 
-        # self.overlay_time = TransparentText('', self)
+        # self.stats_overlay_time = TransparentText('', self)
         # self.update_time_position()  # Устанавливаем позицию текста
 
         # Обновляем статистику
         self.btn_apply.click()
+
+        # Данные по новостям
+        self.news_data = None
 
         # Дополнительные настройки
         self.created_additional_settings = False
@@ -405,7 +463,9 @@ class MainWindow(QMainWindow):
             self.news_filter_enabled = True
         else:
             self.news_filter_enabled = False
-        self.news_updater = NewsUpdater(self)
+
+        self.language = 'en'
+        self.news_updater = NewsUpdater(self, self.language)
 
         self.news_update_timer = QtCore.QTimer(self)
         self.news_update_timer.timeout.connect(self.updateNewsTable)
@@ -422,6 +482,88 @@ class MainWindow(QMainWindow):
         # Отключаем кнопку стоп
         self.stopButton.setEnabled(False)
         self.change_widget_opacity(self.stopButton, 50)
+
+        self.logsButton.clicked.connect(lambda: open_folder(logs_folder))
+
+        # Новые элементы управления
+        self.toggleSummaryButton.clicked.connect(self.toggle_summary)
+        self.stats_stats_overlay_time = self.findChild(QLabel, "stats_stats_overlay_time")
+
+        # Изначально сводка видна
+        self.toggleSummaryButton.setText("Скрыть сводку")
+
+        self.setMinimumSize(1360, 600)
+        self.resize(1360, 600)  # ← Это заставляет окно запуститься в минимальном размере
+
+    def toggle_summary(self):
+        """Переключает отображение сводки статистики"""
+        if self.summary_table.isVisible():
+            # Скрываем сводку и метку времени
+            self.summary_table.hide()
+            self.stats_overlay_time.hide()
+
+            # Сдвигаем элементы влево
+            self.move_widgets_left()
+
+            # Расширяем таблицу сделок на всю ширину
+            self.gridLayout_6.addWidget(self.trades_table, 1, 0, 3, 10)
+            self.toggleSummaryButton.setText("Показать сводку")
+        else:
+            # Показываем сводку и метку времени
+            self.summary_table.show()
+            self.stats_overlay_time.show()
+
+            # Возвращаем элементы на место
+            self.move_widgets_right()
+
+            # Возвращаем таблицу сделок в исходное положение
+            self.gridLayout_6.addWidget(self.trades_table, 1, 1, 3, 9)
+            self.toggleSummaryButton.setText("Скрыть сводку")
+
+    def set_combo_by_data(self, combo_box: QtWidgets.QComboBox, value):
+        index = combo_box.findData(value)
+        if index != -1:
+            combo_box.setCurrentIndex(index)
+
+    def move_widgets_left(self):
+        """Сдвигает элементы управления влево при скрытии сводки"""
+        # Кнопка "Скрыть сводку" -> из (0,6) в (0,5)
+        self.gridLayout_6.addWidget(self.toggleSummaryButton, 0, 0)
+
+        # DateTimePicker 1 -> из (0,4) в (0,3)
+        self.gridLayout_6.addWidget(self.dateTimeEdit_1, 0, 4)
+
+        # DateTimePicker 2 -> из (0,5) в (0,4)
+        self.gridLayout_6.addWidget(self.dateTimeEdit_2, 0, 5)
+
+        # ComboBox типа аккаунта -> из (0,1-2) в (0,0-1)
+        self.gridLayout_6.addWidget(self.type_account_statistic, 0, 1, 1, 2)
+
+    def move_widgets_right(self):
+        """Возвращает элементы управления на место при показе сводки"""
+        # Кнопка "Скрыть сводку" -> обратно в (0,6)
+        self.gridLayout_6.addWidget(self.toggleSummaryButton, 0, 1)
+
+        # DateTimePicker 1 -> обратно в (0,4)
+        self.gridLayout_6.addWidget(self.dateTimeEdit_1, 0, 5)
+
+        # DateTimePicker 2 -> обратно в (0,5)
+        self.gridLayout_6.addWidget(self.dateTimeEdit_2, 0, 6)
+
+        # ComboBox типа аккаунта -> обратно в (0,1-2)
+        self.gridLayout_6.addWidget(self.type_account_statistic, 0, 2, 1, 2)
+
+    def on_language_changed(self):
+        lang_code = self.language_combo.currentData()
+        current_lang = load_language()
+
+        if lang_code != current_lang:
+            save_language(lang_code)
+            QMessageBox.information(
+                self,
+                self.tr("Требуется перезапуск"),
+                self.tr("Изменение языка вступит в силу после перезапуска приложения.")
+            )
 
     def clear_overlay_labels(self, parent_widget: QWidget):
         """
@@ -452,15 +594,17 @@ class MainWindow(QMainWindow):
 
         # Обновление позиции при изменении размера таблицы
         def resize_event(event):
-            self.warn_label.resize(table_widget.viewport().size())
-            QLabel.resizeEvent(self.warn_label, event)
+            if hasattr(self, 'warn_label'):
+                self.warn_label.resize(table_widget.viewport().size())
+                QLabel.resizeEvent(self.warn_label, event)
 
         table_widget.resizeEvent = resize_event
 
         # Слушаем скроллинг: вертикальный и горизонтальный
         def update_label_geometry():
-            self.warn_label.resize(table_widget.viewport().size())
-            self.warn_label.move(0, 0)  # Центр всегда будет по центру viewport
+            if hasattr(self, 'warn_label'):
+                self.warn_label.resize(table_widget.viewport().size())
+                self.warn_label.move(0, 0)  # Центр всегда будет по центру viewport
 
         table_widget.verticalScrollBar().valueChanged.connect(update_label_geometry)
         table_widget.horizontalScrollBar().valueChanged.connect(update_label_geometry)
@@ -478,7 +622,7 @@ class MainWindow(QMainWindow):
         current_time = datetime.now(pytz.utc)
         current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
         f = current_time.strftime("%d-%m-%Y %H:%M:%S")
-        self.overlay_time.setText(f"Дата и время (МСК): {f}")
+        self.stats_overlay_time.setText(self.tr("Дата и время (МСК):") + f" {f}")
 
     @QtCore.pyqtSlot("QWidget*", "QWidget*")
     def on_focusChanged(self, old, now):
@@ -508,25 +652,25 @@ class MainWindow(QMainWindow):
 
     def update_time_position(self):
         """Обновляет позицию текста внизу окна."""
-        text_height = self.overlay_time.height()
-        self.overlay_time.setMinimumWidth(220)
+        text_height = self.stats_overlay_time.height()
+        self.stats_overlay_time.setMinimumWidth(220)
         window_height = self.height()
 
         # Располагаем текст снизу, по центру
         x = 100
         y = window_height - text_height - 15  # Отступ в 10 пикселей от нижнего края
-        self.overlay_time.move(x, y)
+        self.stats_overlay_time.move(x, y)
 
     def update_news_filter_warn_position(self):
         """Обновляет позицию текста внизу окна."""
-        text_height = self.overlay_time.height()
-        self.overlay_time.setMinimumWidth(220)
+        text_height = self.stats_overlay_time.height()
+        self.stats_overlay_time.setMinimumWidth(220)
         window_height = self.height()
 
         # Располагаем текст снизу, по центру
         x = 100
         y = window_height - text_height - 15  # Отступ в 10 пикселей от нижнего края
-        self.overlay_time.move(x, y)
+        self.stats_overlay_time.move(x, y)
 
     def fix_table(self):
         # на windows 10 они отображаются не корректно
@@ -566,24 +710,16 @@ class MainWindow(QMainWindow):
         }
         QHeaderView::section {
             background-color: rgb(18, 26, 61);
-            color: white;
-            font-weight: bold;
-        }
-        
-        QTableWidget, QTableView, QAbstractScrollArea, QFrame {
-        border: none;
-    }
-        """)
-
-        self.trades_table.horizontalHeader().setStyleSheet("""
-            QHeaderView::section {
-                background-color: rgb(18, 26, 61);
                 color: white;
                 padding: 2px;
                 border: 1px solid rgb(18, 26, 61);
                 font-weight: bold;
-            }
+        }
+        
+
         """)
+
+
 
         self.textBrowser.setFrameStyle(QFrame.NoFrame)
         self.textBrowser.setStyleSheet(self.textBrowser.styleSheet() + """
@@ -649,7 +785,6 @@ class MainWindow(QMainWindow):
 
         # Загружаем сохраненные настройки
         self.settings = load_additional_settings_data()
-        print(self.settings)
 
         # Создаем основной контейнер с прокруткой
         main_container = QWidget()
@@ -714,10 +849,11 @@ class MainWindow(QMainWindow):
         schedule_layout.addWidget(schedule_group_title)
 
         self.schedule_settings = {}
-        weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+        self.weekdays = [self.tr("Пн"), self.tr("Вт"), self.tr("Ср"), self.tr("Чт"), self.tr("Пт"), self.tr("Сб"),
+                         self.tr("Вс")]
 
         # Создаем виджет для каждого дня
-        for day in weekdays:
+        for day_index, day in enumerate(self.weekdays):
             day_group = QGroupBox(day)
             day_group.setStyleSheet("""
                 QGroupBox {
@@ -740,8 +876,8 @@ class MainWindow(QMainWindow):
 
             # Восстанавливаем состояние дня
             day_enabled = True
-            if self.settings and "schedule" in self.settings and day in self.settings["schedule"]:
-                day_settings = self.settings["schedule"][day]
+            if self.settings and "schedule" in self.settings:
+                day_settings = self.settings["schedule"][str(day_index)]
                 enabled_cb.setChecked(day_settings["enabled"])
                 day_enabled = day_settings["enabled"]
             else:
@@ -753,8 +889,8 @@ class MainWindow(QMainWindow):
 
             # Список интервалов
             intervals = []
-            if self.settings and "schedule" in self.settings and day in self.settings["schedule"]:
-                intervals = self.settings["schedule"][day]["intervals"]
+            if self.settings and "schedule" in self.settings:
+                intervals = self.settings["schedule"][str(day_index)]["intervals"]
             else:
                 intervals = [{"start": "09:00", "end": "18:00"}]  # По умолчанию
 
@@ -809,9 +945,9 @@ class MainWindow(QMainWindow):
                 """)
                 delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-                interval_layout.addWidget(QLabel("От:"))
+                interval_layout.addWidget(QLabel(self.tr("От:")))
                 interval_layout.addWidget(start_time)
-                interval_layout.addWidget(QLabel("До:"))
+                interval_layout.addWidget(QLabel(self.tr("До:")))
                 interval_layout.addWidget(end_time)
                 interval_layout.addWidget(delete_btn)
                 interval_layout.addStretch()
@@ -825,7 +961,7 @@ class MainWindow(QMainWindow):
                 })
 
             # Кнопка добавления нового интервала
-            add_btn = QPushButton(f"+ {self.tr('Добавить интервал')}")
+            add_btn = QPushButton(self.tr('+ Добавить интервал'))
             add_btn.setStyleSheet("""
                 QPushButton {
                     font-size: 12px;
@@ -880,7 +1016,7 @@ class MainWindow(QMainWindow):
 
         self.fix_table()
 
-        self.news_data = None
+
         self.updateNewsTable()
         if self.news_data is None:
             self.place_news_loading_text()
@@ -907,7 +1043,7 @@ class MainWindow(QMainWindow):
                 except Exception:
                     traceback.print_exc()
             else:
-                self.add_background_text(self.news_table, f"{self.tr('Внимание!')} \n{self.tr('Фильтр выключен!')}",
+                self.add_background_text(self.news_table, self.tr('Внимание!') + "\n" + self.tr('Фильтр выключен!'),
                                          color='red')
         else:
             self.place_news_loading_text()
@@ -974,28 +1110,52 @@ class MainWindow(QMainWindow):
         # Добавляем в основной layout
         parent_block.addWidget(news_group)
 
-        # Загружаем настройки новостей
-        self.news_settings = load_news_settings()
-        enabled = self.news_settings.get("enabled")
-        self.news_filter_toggle.setText(self.tr("Выключить фильтр") if enabled else self.tr("Включить фильтр"))
+        self.toggleNewsFilter()
+
+
+    def toggleStyleSheetNewsFilterButton(self, enabled):
         if enabled:
             self.news_filter_toggle.setStyleSheet("""
-                    background-color: #a83e3e;
-                    color: white;
-                    border-radius: 5px;
-                    padding: 5px;
-                    font-size: 12px;    
-                    """)
+                            QPushButton {
+            background-color: #a83e3e;
+            color: white;
+            border-radius: 5px;
+            padding: 8px;
+            font-size: 12px;
+        }
+
+        QPushButton:hover {
+            background-color: #922f2f; /* чуть темнее */
+        }
+
+        QPushButton:pressed {
+            background-color: #7a2424; /* ещё темнее при нажатии */
+            padding-top: 9px;
+            padding-bottom: 7px;
+        }
+
+                            """)
         else:
             self.news_filter_toggle.setStyleSheet("""
-                    background-color: rgb(83, 140, 85);
-                    color: white;
-                    border-radius: 5px;
-                    padding: 5px;
-                    font-size: 12px;       
-                    """)
+                            QPushButton {
+            background-color: rgb(83, 140, 85);
+            color: white;
+            border-radius: 5px;
+            padding: 8px;
+            font-size: 12px;
+        }
 
-        self.news_filter_enabled = enabled
+        QPushButton:hover {
+            background-color: rgb(73, 120, 75); /* чуть темнее */
+        }
+
+        QPushButton:pressed {
+            background-color: rgb(63, 100, 65); /* еще темнее при нажатии */
+            padding-top: 9px;
+            padding-bottom: 7px;
+        }
+
+                            """)
 
     def updateNewsTable(self):
         if not hasattr(self, "news_table"):
@@ -1075,25 +1235,18 @@ class MainWindow(QMainWindow):
         self.news_settings[news_id][setting] = value
         save_news_settings(self.news_settings)
 
-    def toggleNewsFilter(self, enabled):
+    def toggleNewsFilter(self, enabled=None):
         """Переключает состояние новостного фильтра"""
+
+        # Если ручной запуску ф-и то данные берем из настроек:
+        if enabled is None:
+            self.news_settings = load_news_settings()
+
+            enabled = self.news_settings.get("enabled")
+
         self.news_filter_toggle.setText(self.tr("Выключить фильтр") if enabled else self.tr("Включить фильтр"))
-        if enabled:
-            self.news_filter_toggle.setStyleSheet("""
-                    background-color: #a83e3e;
-                    color: white;
-                    border-radius: 5px;
-                    padding: 5px;
-                    font-size: 12px;    
-                    """)
-        else:
-            self.news_filter_toggle.setStyleSheet("""
-                    background-color: rgb(83, 140, 85);
-                    color: white;
-                    border-radius: 5px;
-                    padding: 5px;
-                    font-size: 12px;       
-                    """)
+
+        self.toggleStyleSheetNewsFilterButton(enabled)
 
         self.news_filter_enabled = enabled
         self.news_settings["enabled"] = enabled
@@ -1128,36 +1281,39 @@ class MainWindow(QMainWindow):
         target_news = None
 
         for news in self.news_data:
-            # Пропускаем новости без настроек
-            if not self.news_settings.get(str(news['id'])):
-                continue
-
             # Получаем настройки
             news_id = str(news['id'])
-            settings = self.news_settings.get(news_id, {})
-            before_min = settings.get('before', 0)
-            after_min = settings.get('after', 0)
 
-            # Переопределяем настройками фильтра по важности
             filter_settings = self.news_settings.get('filter_settings', {})
-            if filter_settings:
-                importance = news.get('importance', '').lower()
-                if importance == 'low':
-                    if before_min == 0:
-                        before_min = filter_settings.get('low_before', 0)
-                    if after_min == 0:
-                        after_min = filter_settings.get('low_after', 0)
-                elif importance == 'medium':
-                    if before_min == 0:
-                        before_min = filter_settings.get('med_before', 0)
-                    if after_min == 0:
-                        after_min = filter_settings.get('med_after', 0)
-                elif importance == 'high':
-                    if before_min == 0:
-                        before_min = filter_settings.get('high_before', 0)
-                    if after_min == 0:
-                        after_min = filter_settings.get('high_after', 0)
 
+            # Пропускаем новости без настроек
+            if self.news_settings.get(str(news['id'])):
+
+
+                settings = self.news_settings.get(news_id, {})
+                before_min = settings.get('before', 0)
+                after_min = settings.get('after', 0)
+
+            else:
+
+                # Переопределяем настройками фильтра по важности
+
+                if filter_settings:
+                    importance = news.get('importance', '').lower()
+                    if importance == 'low':
+                        before_min = filter_settings.get('low_before', 0)
+                        after_min = filter_settings.get('low_after', 0)
+                    elif importance == 'medium':
+                        before_min = filter_settings.get('med_before', 0)
+                        after_min = filter_settings.get('med_after', 0)
+                    elif importance == 'high':
+                        before_min = filter_settings.get('high_before', 0)
+                        after_min = filter_settings.get('high_after', 0)
+                    else:
+                        logging.warning(f"Не известная {importance=}")
+                        continue
+
+            print('Новостный фильтр: ', before_min, after_min)
             # Пропуск если интервалы не заданы
             if before_min == 0 and after_min == 0:
                 continue
@@ -1256,15 +1412,15 @@ class MainWindow(QMainWindow):
                 min-width: 20px;
                 max-width: 20px;
                 min-height: 20px;
-                max-height: 20px;
+                max-height: 20px
                 border-radius: 10px;
             }
         """)
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        interval_layout.addWidget(QLabel("От:"))
+        interval_layout.addWidget(QLabel(self.tr("От:")))
         interval_layout.addWidget(start_time)
-        interval_layout.addWidget(QLabel("До:"))
+        interval_layout.addWidget(QLabel(self.tr("До:")))
         interval_layout.addWidget(end_time)
         interval_layout.addWidget(delete_btn)
         interval_layout.addStretch()
@@ -1316,7 +1472,7 @@ class MainWindow(QMainWindow):
                     "end": interval["end_time"].time().toString("HH:mm")
                 })
 
-            schedule_settings[day] = {
+            schedule_settings[self.weekdays.index(day)] = {
                 "enabled": day_settings["enabled_cb"].isChecked(),
                 "intervals": intervals
             }
@@ -1334,7 +1490,7 @@ class MainWindow(QMainWindow):
         user_id = self.userid_edit.text()
         url = self.urlEdit.text()
         auth_data = {
-            "selected_type_account": self.type_account.currentText(),
+            "selected_type_account": self.type_account.currentData(),
             "token": self.token_edit.text().strip(),
             "user_id": self.userid_edit.text().strip(),
             "url": self.urlEdit.text().strip(),
@@ -1371,7 +1527,7 @@ class MainWindow(QMainWindow):
         return verified
 
     def ute_open(self, data):
-        logging.debug(data)
+        logging.debug(f"Got a signal: {data}")
         match = re.search(r'[A-Za-z]{6}', data["pair"])
         cleaned_pair = match.group(0) if match else None
         if cleaned_pair is None:
@@ -1379,21 +1535,24 @@ class MainWindow(QMainWindow):
             return
         data["pair"] = cleaned_pair
         data["direct"] = data["direct"].replace("/", "")
-        if self.bot.is_connected is True:
-            try:
-                logging.debug(data)
-                if self.bot is not None:
-                    self.bot.mt4_signal(mt4_data=data)
-            except Exception:
-                logging.exception("Exception occurred")
-        else:
-            logging.error("Client not connected! Reconnection...")
-            self.bot.reconnect()
-            self.ute_open(data)
+        if hasattr(self, 'bot'):
+            if self.bot.is_connected is True:
+                try:
+                    logging.debug(data)
+                    if self.bot is not None:
+                        self.bot.mt4_signal(mt4_data=data)
+                except Exception:
+                    logging.exception("Exception occurred")
+            else:
+                logging.error("Client not connected! Reconnection...")
+                self.bot.reconnect()
+                self.ute_open(data)
 
     def connect_to_server(self):
-        flask_thread.data_received.connect(self.ute_open)
-        flask_thread.start()
+        if self.flask_running is False:
+            flask_thread.data_received.connect(self.ute_open)
+            flask_thread.start()
+            self.flask_running = True
 
     def start_client_thread(self):
         try:
@@ -1421,13 +1580,13 @@ class MainWindow(QMainWindow):
                         return
                     if verified1 or verified2:
                         auth_data = {
-                            "selected_type_account": self.type_account.currentText(),
+                            "selected_type_account": self.type_account.currentData(),
                             "token": self.token_edit.text().strip(),
                             "user_id": self.userid_edit.text().strip(),
                             "url": self.urlEdit.text().strip(),
                             "mt4_url": self.mt4Url.text().strip()
                         }
-                        self.account_type = TYPE_ACCOUNT[auth_data["selected_type_account"]]
+                        self.account_type = self.type_account.currentData()
                         save_auth_data(auth_data)
 
                         # Разрешаем торговлю
@@ -1475,6 +1634,11 @@ class MainWindow(QMainWindow):
     def stop_client_thread(self):
 
         logging.info('Остановка торговли...')
+
+        if self.bot:
+            self.bot.close_connection()
+        self.bot = None
+        self.is_connected = False
 
         # Очистка серий
         if self.bot:
@@ -1546,10 +1710,8 @@ class MainWindow(QMainWindow):
 
             """ Фильтр записей """
             # Получение тип счёта (сокращенное на английском)
-            selected_type = self.type_account_statistic.currentText()
-            if selected_type != "Любой":
-                account_type = TYPE_ACCOUNT[selected_type]
-
+            account_type = self.type_account_statistic.currentData()
+            if account_type != 'any':
                 # Фильтруем
                 trades = list(filter(lambda deal: deal["type_account"] == account_type, trades))
 
@@ -1586,9 +1748,10 @@ class MainWindow(QMainWindow):
 
                     item = QLineEdit()
                     if col == 0:
-                        for russ_key, val in TYPE_ACCOUNT.items():
-                            if val == value:
-                                item.setText(russ_key)
+                        item.setText(self.ACCOUNT_LABELS[value])
+                        # for russ_key, val in TYPE_ACCOUNT.items():
+                        #    if val == value:
+                        #        item.setText(russ_key)
                     else:
                         item.setText(value)
                     item.setDisabled(True)
@@ -1621,7 +1784,7 @@ class MainWindow(QMainWindow):
                     text_width = font_metrics.horizontalAdvance(item.text())
 
                     # Устанавливаем ширину QLineEdit с учетом отступов
-                    if col < 7:
+                    if col < 0:
                         if text_width + 20 < 100:
                             item.setMinimumWidth(100)  # +20 для отступов
                         else:
@@ -1644,6 +1807,56 @@ class MainWindow(QMainWindow):
             logging.exception("Exception occurred")
             time.sleep(10)
 
+    def delete_statistic(self):
+        try:
+
+            # Подтверждение удаления
+            confirm = QMessageBox.question(
+                self,
+                self.tr("Подтверждение удаления"),
+                self.tr("Вы уверены, что хотите удалить выбранную статистику?"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if confirm != QMessageBox.StandardButton.Yes:
+                return  # Отмена пользователем
+
+            data = load_statistic_data()
+            all_trades = data.get("trades", [])
+
+            # Получение типа счета
+            account_type = self.type_account_statistic.currentData()
+            if account_type != 'any':
+                filtered_trades = list(filter(lambda deal: deal["type_account"] == account_type, all_trades))
+            else:
+                filtered_trades = all_trades.copy()
+
+            # Получение дат
+            from_datetime = self.dateTimeEdit_1.dateTime()
+            to_datetime = self.dateTimeEdit_2.dateTime()
+
+            # Применение фильтра по датам
+            filtered_trades = list(filter(
+                lambda deal: from_datetime <= datetime.strptime(deal["open_time"], "%d-%m-%Y %H:%M:%S") and (
+                        deal["close_time"] == "⌛" or to_datetime >= datetime.strptime(deal["close_time"],
+                                                                                      "%d-%m-%Y %H:%M:%S")),
+                filtered_trades
+            ))
+
+            # Удаление отфильтрованных записей из оригинального списка
+            remaining_trades = [deal for deal in all_trades if deal not in filtered_trades]
+
+            # Обновление и сохранение
+            data["trades"] = remaining_trades
+            save_statistic_data(data)
+
+            # Обновление таблицы и сводки
+            self.update_all_statistic()
+
+        except Exception:
+            logging.exception("Exception occurred during statistic deletion")
+            time.sleep(10)
+
     def update_summary(self, summary):
         """ Обновляет блок сводки статистики """
         summary_labels = [
@@ -1651,20 +1864,19 @@ class MainWindow(QMainWindow):
             "gross_profit", "gross_loss", "avg_profit_trade", "avg_loss_trade",
             "max_consecutive_wins", "max_consecutive_losses"
         ]
-        summary_text_labels = [label.strip() for label in f"""
-            {self.tr('Всего (Total)')}
-            {self.tr('Прибыльных (Profit)')}
-            {self.tr('Убыточных (Loss)')}
-            {self.tr('С возвратом (Refund)')}
-            {self.tr('Процент побед % (Win rate %)')}   
-            {self.tr('Общий результат (Total net profit)')} 
-            {self.tr('Сумма прибыльных (Gross profit)')}
-            {self.tr('Сумма убыточных (Gross loss)')}
-            {self.tr('Средняя прибыльная (Average profit trade)')}
-            {self.tr('Средняя убыточная (Average loss trade)')}
-            {self.tr('Макс. непрерывных выигрышей (Max consecutive wins)')}
-            {self.tr('Макс. непрерывных проигрышей (Max consecutive losses)')}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
-           """.split('\n') if label.strip()]
+        summary_text_labels = [
+            self.tr('Всего (Total)'),
+            self.tr('Прибыльных (Profit)'),
+            self.tr('Убыточных (Loss)'),
+            self.tr('С возвратом (Refund)'),
+            self.tr('Процент побед % (Win rate %)'),
+            self.tr('Общий результат (Total net profit)'),
+            self.tr('Сумма прибыльных (Gross profit)'),
+            self.tr('Сумма убыточных (Gross loss)'),
+            self.tr('Средняя прибыльная (Average profit trade)'),
+            self.tr('Средняя убыточная (Average loss trade)'),
+            self.tr('Макс. непрерывных выигрышей (Max consecutive wins)'),
+            self.tr('Макс. непрерывных проигрышей (Max consecutive losses)')]
 
         for i, key in enumerate(summary_labels):
             value = str(summary.get(key, "N/A"))
@@ -1686,17 +1898,13 @@ class MainWindow(QMainWindow):
 
     def initManageTable(self):
         # Устанавливаем растягивание всех колонок, кроме первой
+
+
+        # Устанавливаем фиксированную ширину для столбцов
         header = self.manage_table.horizontalHeader()
-
-        # Устанавливаем фиксированную ширину для первого столбца
         self.manage_table.setColumnWidth(0, 40)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
 
-        # Растягиваем остальные столбцы
-        for col in range(1, self.manage_table.columnCount()):
-            if col in []:
-                header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
-            else:
-                header.setSectionResizeMode(col, QHeaderView.Stretch)
 
         data = load_money_management_data()
 
@@ -1713,50 +1921,56 @@ class MainWindow(QMainWindow):
                             on_win=item.get("on_win", cnt),
                             on_loss=item.get("on_loss", cnt),
                             # result_val=item["result_type"],
-                            skip_check=True)
+                            skip_check=True,
+                            add_copy=False, header=header)
                 cnt += 1
             except Exception:
                 logging.exception("Exception occurred")
 
     def addRow(self, *args, invest_val="100", expiration_val="00:01:00",
                mm_type_val=MM_MODES[1],
-               profit_val="100000", stop_val="100", on_win=1, on_loss=1, result_val='WIN', skip_check=False):
+               profit_val="100000", stop_val="100", on_win=1,
+               on_loss=1, result_val='WIN', skip_check=False, add_copy=False, header=None):
+
 
         def place_default():
-            for i in range(1, self.manage_table.columnCount()):
+            for col in range(1, self.manage_table.columnCount()):
                 # if i in [MM_TABLE_FIELDS["Результат"]]:
                 #    continue
 
                 item = QLineEdit()
                 item.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-                if i == MM_TABLE_FIELDS["Инвестиция"]:
+                if col == MM_TABLE_FIELDS["Инвестиция"]:
                     item.setValidator(self.investment_validator)
                     item.setText(invest_val)
-                elif i == MM_TABLE_FIELDS["Экспирация"]:
+                elif col == MM_TABLE_FIELDS["Экспирация"]:
                     item.setValidator(self.expiration_validator)
                     item.setText(expiration_val)
-                elif i == MM_TABLE_FIELDS["Тейк профит"]:
+                elif col == MM_TABLE_FIELDS["Тейк профит"]:
                     item.setValidator(self.digit_validator)
                     item.setText(profit_val)
-                elif i == MM_TABLE_FIELDS["Стоп лосс"]:
+                elif col == MM_TABLE_FIELDS["Стоп лосс"]:
                     item.setValidator(self.digit_validator)
                     item.setText(stop_val)
-                elif i == MM_TABLE_FIELDS["Тип ММ"]:
+                elif col == MM_TABLE_FIELDS["Тип ММ"]:
                     item.setValidator(self.type_mm)
                     item.setText(mm_type_val)
                     # Подключаем сигнал изменения ячейки к слоту
                     item.textChanged.connect(self.update_mm_table)
-                elif i == MM_TABLE_FIELDS["WIN"]:
+                elif col == MM_TABLE_FIELDS["WIN"]:
                     item.setValidator(self.digit_validator)
                     item.setText(str(on_win))
-                elif i == MM_TABLE_FIELDS["LOSS"]:
+                elif col == MM_TABLE_FIELDS["LOSS"]:
                     item.setValidator(self.digit_validator)
                     item.setText(str(on_loss))
                 else:
                     item.setValidator(self.digit_validator)
                 item.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
-                self.manage_table.setCellWidget(rowCount, i, item)
+                item.setMinimumWidth(120)
+                if header:
+                    header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+                self.manage_table.setCellWidget(rowCount, col, item)
 
         def place_previous_copy():
             prev_row = rowCount - 1
@@ -1789,6 +2003,9 @@ class MainWindow(QMainWindow):
                     new_widget.setValidator(self.digit_validator)
 
                 new_widget.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
+                new_widget.setMinimumWidth(120)
+                if header:
+                    header.setSectionResizeMode(col, QHeaderView.Stretch)
                 self.manage_table.setCellWidget(rowCount, col, new_widget)
 
         try:
@@ -1806,7 +2023,6 @@ class MainWindow(QMainWindow):
             self.manage_table.setCellWidget(rowCount, 0, cnt_item)
 
             # Валидация инвестиции
-            print(rowCount)
             if rowCount > 0:
                 prev_value = self.manage_table.cellWidget(0, MM_TABLE_FIELDS["Инвестиция"]).text()
                 prev_type = "percent" if "%" in prev_value else "number"
@@ -1821,6 +2037,7 @@ class MainWindow(QMainWindow):
                     self.manage_table.removeRow(rowCount)
                     return
 
+            if add_copy == 1:
                 # Если таблица не пуста, копируем последнюю строку
                 place_previous_copy()
             else:
@@ -1862,22 +2079,22 @@ class MainWindow(QMainWindow):
                     else:
                         if ("%" in value and self.investment_type == "number") or (
                                 "%" not in value and self.investment_type == "percent"):
-                            QMessageBox.warning(self, "Ошибка",
-                                                f"Несовместимый тип инвестиции в строке {row + 1}. Во всех строках применяется ли бо конечное число, либо % от баланса на аккаунте.")
+                            QMessageBox.warning(self, self.tr("Ошибка"),
+                                                self.tr(
+                                                    f"Несовместимый тип инвестиции в строке") + f" {row + 1}. " + self.tr(
+                                                    "Во всех строках применяется ли бо конечное число, либо % от баланса на аккаунте."))
                             return
                     data[row]["investment"] = value
 
                     if hasattr(self, "account_type") and self.account_type == 'real_dollar' and not (
                             0.1 <= float(value) <= 2000):
                         self.log_message(
-                            f"Баланс сделки в строке {row + 1} (${float(value)}) не удовлетворяет условиям (мин $0.1 "
-                            f"макс $2,000)")
+                            f"{self.tr('Баланс сделки в строке')} {row + 1} (${float(value)}) {self.tr('не удовлетворяет условиям (мин $0.1, макс $2,000)')}")
                         return
                     elif hasattr(self, "account_type") and self.account_type == 'real_rub' and not (
                             20 <= float(value) <= 200000):
                         self.log_message(
-                            f"Баланс сделки в строке {row + 1} (₽{float(value)}) не удовлетворяет условиям (мин ₽20 "
-                            f"макс ₽200,000)")
+                            f"{self.tr('Баланс сделки в строке')} {row + 1} (₽{float(value)}) {self.tr('не удовлетворяет условиям (мин ₽20, макс ₽200,000)')}")
                         return
 
                 # Проверка экспирации
@@ -1892,9 +2109,8 @@ class MainWindow(QMainWindow):
                             # logging.debug(seconds)
 
                             if not (exp_time.isValid() and 86100 >= seconds >= 60):
-                                QMessageBox.warning(self, "Ошибка",
-                                                    f"Неверный формат или слишком короткий интервал экспирации в "
-                                                    f"строке {row + 1}")
+                                QMessageBox.warning(self, self.tr("Ошибка"),
+                                                    f"{self.tr('Неверный формат или слишком короткий интервал экспирации в строке')} {row + 1}")
                                 raise ValueError("Неверный формат или слишком короткий интервал")
                             data[row]["expiration"] = value
                         except ValueError:
@@ -1902,20 +2118,21 @@ class MainWindow(QMainWindow):
                             return
                     elif value.isdigit():  # В минутах
                         if int(value) not in [1, 5, 15, 30, 60]:
-                            QMessageBox.warning(self, "Ошибка",
-                                                f"Экспирация в формате числа должна быть одним из следующих значений: 1, 5, 15, 30, 60 Строка {row + 1}")
+                            QMessageBox.warning(self, self.tr("Ошибка"),
+                                                f"{self.tr('Экспирация в формате числа должна быть одним из следующих значений: 1, 5, 15, 30, 60 Строка')} {row + 1}")
                             return
                         data[row]["expiration"] = value
                     else:  # Должно быть числом
-                        QMessageBox.warning(self, "Ошибка",
-                                            f"Экспирация должна быть числом или временем в строке {row + 1}")
+                        QMessageBox.warning(self, self.tr("Ошибка"),
+                                            f"{self.tr('Экспирация должна быть числом или временем в строке')} {row + 1}")
                         return
 
                 # Проверка типа ММ
                 mm_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])
 
                 if mm_item and mm_item.text().strip() not in MM_MODES.values():
-                    QMessageBox.warning(self, "Ошибка", f"Некорректный режим обработки в строке {row + 1}")
+                    QMessageBox.warning(self, self.tr("Ошибка"),
+                                        f"{self.tr('Некорректный режим обработки в строке')} {row + 1}")
                     return
                 if mm_item:
                     mm_text = mm_item.text().strip()
@@ -1931,20 +2148,21 @@ class MainWindow(QMainWindow):
 
                     if not nide_notification:
                         if rowCount <= 1 and mm_text in [MM_MODES[1], MM_MODES[2], MM_MODES[3], MM_MODES[4]]:
-                            QMessageBox.warning(self, "Ошибка",
-                                                f"Для выбранного вами режима необходимо настроить хотя бы 2 строки")
+                            QMessageBox.warning(self, self.tr("Ошибка"),
+                                                self.tr(
+                                                    "Для выбранного вами режима необходимо настроить хотя бы 2 строки"))
                             return
 
                 # Проверка "WIN"
                 on_win_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["WIN"])
                 if on_win_item and int(on_win_item.text().strip()) > rowCount:
-                    QMessageBox.warning(self, "Ошибка",
+                    QMessageBox.warning(self, self.tr("Ошибка"),
                                         f'Параметр WIN выходит за диапазон таблицы в строке {row + 1}')
                     return
 
                 if on_win_item and row != 0 and int(on_win_item.text().strip()) == (row + 1):
-                    QMessageBox.warning(self, "Ошибка",
-                                        f'Параметр WIN не должен указывать на текущую строку в строке {row + 1}')
+                    QMessageBox.warning(self, self.tr("Ошибка"),
+                                        f"{self.tr('Параметр WIN не должен указывать на текущую строку в строке')} {row + 1}")
                     return
 
                 if on_win_item:
@@ -1953,13 +2171,13 @@ class MainWindow(QMainWindow):
                 # Проверка "WIN"
                 on_loss_item = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["LOSS"])
                 if on_loss_item and int(on_loss_item.text().strip()) > rowCount:
-                    QMessageBox.warning(self, "Ошибка",
-                                        f'Параметр LOSS выходит за диапазон таблицы в строке {row + 1}')
+                    QMessageBox.warning(self, self.tr("Ошибка"),
+                                        f"{self.tr('Параметр LOSS выходит за диапазон таблицы в строке')} {row + 1}")
                     return
 
                 if on_loss_item and row != 0 and int(on_loss_item.text().strip()) == (row + 1):
-                    QMessageBox.warning(self, "Ошибка",
-                                        f'Параметр LOSS не должен указывать на текущую строку в строке {row + 1}')
+                    QMessageBox.warning(self, self.tr("Ошибка"),
+                                        f"{self.tr('Параметр LOSS не должен указывать на текущую строку в строке')} {row + 1}")
                     return
 
                 if on_loss_item:
@@ -1980,15 +2198,15 @@ class MainWindow(QMainWindow):
                         try:
                             float(value_item.text().strip())
                         except ValueError:
-                            QMessageBox.warning(self, "Ошибка",
-                                                f"Тейк профит и Стоп лосс должны быть числами в строке {row + 1}")
+                            QMessageBox.warning(self, self.tr("Ошибка"),
+                                                f"{self.tr('Тейк профит и Стоп лосс должны быть числами в строке')} {row + 1}")
                             return
                 data[row]["take_profit"] = self.manage_table.cellWidget(row,
                                                                         MM_TABLE_FIELDS["Тейк профит"]).text().strip()
                 data[row]["stop_loss"] = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Стоп лосс"]).text().strip()
 
             if not nide_notification:
-                QMessageBox.information(self, "Успех", "Данные сохранены успешно!")
+                QMessageBox.information(self, self.tr("Успех"), self.tr("Данные сохранены успешно!"))
                 self.allowToRunBot = True
             self.haveUnsavedRows = False
             save_money_management_data(data)
@@ -2079,6 +2297,13 @@ class TransparentText(QLabel):
         super().paintEvent(event)
 
 
+def resource_path(relative_path):
+    """Возвращает абсолютный путь к ресурсу, работает и в PyInstaller"""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.abspath(relative_path)
+
+
 if __name__ == '__main__':
     # Убираем работу с БД
     # session = db_init()
@@ -2091,6 +2316,15 @@ if __name__ == '__main__':
         # QtCore.QDir.addSearchPath('', '/')
 
         app_qt = QApplication(sys.argv)
+
+        translator = QTranslator()
+        lang = load_language()
+        if lang != 'ru':
+            if translator.load(resource_path(f"translations_{lang}.qm")):
+                app_qt.installTranslator(translator)
+            else:
+                print("Не удалось загрузить перевод")
+
         main_app = MainWindow()
         main_app.show()
         logging.info('APP started!')

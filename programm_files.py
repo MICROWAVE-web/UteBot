@@ -7,7 +7,7 @@ from pathlib import Path
 
 from platformdirs import *
 
-CURRENT_VERSION = '1.0.4'  # Текущая версия бота
+CURRENT_VERSION = '1.0.4.1'  # Текущая версия бота
 
 appname = f"UTEConnect_{CURRENT_VERSION}"
 
@@ -66,6 +66,7 @@ def get_or_create_instance_directory():
 def init_dirs():
     print(data_dir, log_dir)
     os.makedirs(data_dir, exist_ok=True)
+    os.makedirs(logs_folder, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
 
 
@@ -137,53 +138,56 @@ def save_additional_settings_data(auth_data):
 """
 
 
-def load_additional_settings_data():
+def load_additional_settings_data(reset=False):
     try:
-        if os.path.exists(fr'{data_dir}\\additional_settings_data.json'):
+        if os.path.exists(fr'{data_dir}\\additional_settings_data.json') and not reset:
             with open(fr'{data_dir}\\additional_settings_data.json', "r", encoding="utf-8") as f:
-                return json.load(f)
+                result = json.load(f)
+                if "Пн" in result.get("schedule", {}).keys():
+                    load_additional_settings_data(reset=True)
+                return result
         else:
             # Создаем настройки по умолчанию
             default_settings = {
                 "pairs": {},
                 "schedule": {
-                    "Пн": {
+                    "0": {
                         "enabled": True,
                         "intervals": [
                             {"start": "00:00", "end": "23:59"},
                         ]
                     },
-                    "Вт": {
+                    "1": {
                         "enabled": True,
                         "intervals": [
                             {"start": "00:00", "end": "23:59"},
                         ]
                     },
-                    "Ср": {
+                    "2": {
                         "enabled": True,
                         "intervals": [
                             {"start": "00:00", "end": "23:59"},
                         ]
                     },
-                    "Чт": {
+                    "3": {
                         "enabled": True,
                         "intervals": [
                             {"start": "00:00", "end": "23:59"},
                         ]
                     },
-                    "Пт": {
+                    "4": {
                         "enabled": True,
                         "intervals": [
                             {"start": "00:00", "end": "23:59"},
                         ]
                     },
-                    "Сб": {
+                    "5": {
                         "enabled": True,
                         "intervals": [
                             {"start": "00:00", "end": "23:59"},
                         ]
                     },
-                    "Вс": {
+                    "6": {
                         "enabled": True,
                         "intervals": [
                             {"start": "00:00", "end": "23:59"},
@@ -236,7 +240,28 @@ def load_news():
     return {}
 
 
+def load_language():
+    try:
+        if os.path.exists(fr"{data_dir}\language.json"):
+            with open(fr"{data_dir}\language.json", "r", encoding="utf-8") as f:
+                return json.load(f).get("language", "ru")
+        else:
+            save_language("ru")
+            return "ru"
+    except Exception:
+        return "ru"
+
+
+def save_language(lang_code):
+    try:
+        with open(fr"{data_dir}\language.json", "w", encoding="utf-8") as f:
+            json.dump({"language": lang_code}, f)
+    except Exception as e:
+        print(f"Ошибка сохранения языка: {e}")
+
+
 data_dir = get_or_create_instance_directory()
+logs_folder = f"{data_dir}\\logs"
 log_dir = f'{user_log_dir(appname, appauthor)}'
 
 if __name__ == '__main__':

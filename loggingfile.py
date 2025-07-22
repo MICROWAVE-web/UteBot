@@ -6,11 +6,11 @@ from logging.handlers import RotatingFileHandler
 
 from pytz import timezone
 
-from programm_files import init_dirs, data_dir
+from programm_files import init_dirs, data_dir, logs_folder
 
 init_dirs()
 
-fp = fr'{data_dir}\log.txt'
+fp = fr'{logs_folder}\log.txt'
 
 # file_log = logging.FileHandler(fp)
 my_handler = RotatingFileHandler(fp, mode='a', maxBytes=10 * 1024 * 1024, backupCount=10, encoding='utf-8')
