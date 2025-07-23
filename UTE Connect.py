@@ -18,7 +18,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, QTime, Qt, QRegularExpression, QDa
 from PyQt5.QtGui import QIcon, QRegularExpressionValidator, QFontMetrics, QFont, QPainter, QColor
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QHeaderView, QMessageBox, \
     QLineEdit, QLabel, QGroupBox, QHBoxLayout, QCheckBox, QVBoxLayout, QWidget, QScrollArea, QTimeEdit, QFrame, \
-    QGridLayout, QPushButton, QDialog, QSpinBox, QTableWidget, QGraphicsOpacityEffect
+    QGridLayout, QPushButton, QDialog, QSpinBox, QTableWidget, QGraphicsOpacityEffect, QSizePolicy, QAbstractItemView
 from flask import Flask, request, abort
 
 from loggingfile import logging
@@ -490,7 +490,7 @@ class MainWindow(QMainWindow):
         self.stats_stats_overlay_time = self.findChild(QLabel, "stats_stats_overlay_time")
 
         # Изначально сводка видна
-        self.toggleSummaryButton.setText("Скрыть сводку")
+        self.toggleSummaryButton.setText(self.tr("Скрыть сводку"))
 
         self.setMinimumSize(1360, 600)
         self.resize(1360, 600)  # ← Это заставляет окно запуститься в минимальном размере
@@ -1897,14 +1897,22 @@ class MainWindow(QMainWindow):
     # Мани-менеджмент
 
     def initManageTable(self):
-        # Устанавливаем растягивание всех колонок, кроме первой
+        self.manage_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-
-        # Устанавливаем фиксированную ширину для столбцов
         header = self.manage_table.horizontalHeader()
-        self.manage_table.setColumnWidth(0, 40)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.manage_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.manage_table.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
+        # Минимальная ширина всех колонок
+        header.setMinimumSectionSize(120)
+        # header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+
+        # Stretch всем колонкам, но с учётом минимального размера
+
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
+
+        # self.manage_table.setColumnWidth(0, 40)  # Можно убрать, если растягиваете все
 
         data = load_money_management_data()
 
@@ -1913,16 +1921,18 @@ class MainWindow(QMainWindow):
             try:
                 if cnt >= len(data) + 1:
                     cnt = 0
-                self.addRow(invest_val=item["investment"],
-                            expiration_val=item["expiration"],
-                            mm_type_val=item["mm_type"],
-                            profit_val=item["take_profit"],
-                            stop_val=item["stop_loss"],
-                            on_win=item.get("on_win", cnt),
-                            on_loss=item.get("on_loss", cnt),
-                            # result_val=item["result_type"],
-                            skip_check=True,
-                            add_copy=False, header=header)
+                self.addRow(
+                    invest_val=item["investment"],
+                    expiration_val=item["expiration"],
+                    mm_type_val=item["mm_type"],
+                    profit_val=item["take_profit"],
+                    stop_val=item["stop_loss"],
+                    on_win=item.get("on_win", cnt),
+                    on_loss=item.get("on_loss", cnt),
+                    skip_check=True,
+                    add_copy=False,
+                    header=header
+                )
                 cnt += 1
             except Exception:
                 logging.exception("Exception occurred")
@@ -1968,8 +1978,8 @@ class MainWindow(QMainWindow):
                     item.setValidator(self.digit_validator)
                 item.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
                 item.setMinimumWidth(120)
-                if header:
-                    header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+                # if header:
+                    # header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
                 self.manage_table.setCellWidget(rowCount, col, item)
 
         def place_previous_copy():
@@ -1977,6 +1987,7 @@ class MainWindow(QMainWindow):
             for col in range(1, self.manage_table.columnCount()):
                 prev_widget = self.manage_table.cellWidget(prev_row, col)
                 if isinstance(prev_widget, QLineEdit):
+
                     copied_text = prev_widget.text()
                 else:
                     copied_text = ""
@@ -2019,7 +2030,7 @@ class MainWindow(QMainWindow):
             cnt_item.setDisabled(True)
             cnt_item.setAlignment(Qt.AlignmentFlag.AlignCenter)
             cnt_item.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
-            cnt_item.setMaximumWidth(40)
+            # cnt_item.setMaximumWidth(40)
             self.manage_table.setCellWidget(rowCount, 0, cnt_item)
 
             # Валидация инвестиции
@@ -2037,7 +2048,7 @@ class MainWindow(QMainWindow):
                     self.manage_table.removeRow(rowCount)
                     return
 
-            if add_copy == 1:
+            if add_copy == 1 and rowCount != 0:
                 # Если таблица не пуста, копируем последнюю строку
                 place_previous_copy()
             else:
@@ -2233,6 +2244,7 @@ class MainWindow(QMainWindow):
         # self.saveData(nide_notification=True)
 
     def update_mm_table(self, text):
+        print(text)
         if not text:
             return
 
@@ -2277,7 +2289,7 @@ class MainWindow(QMainWindow):
                                         background-color: #121a3d;border-radius: 0px;
                                     }
                                 """)
-
+        self.selected_mm_mode = int(text)
 
 class TransparentText(QLabel):
     def __init__(self, text, parent):

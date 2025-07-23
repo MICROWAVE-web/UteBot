@@ -173,7 +173,7 @@ class NewsFilterDialog(QDialog):
         )
 
         ok_button = buttons.button(QDialogButtonBox.Ok)
-        ok_button.setText("Ок")
+        ok_button.setText(tr("Ок"))
         ok_button.setStyleSheet("""
         QPushButton {
             background-color: rgb(83, 140, 85);
@@ -196,7 +196,7 @@ class NewsFilterDialog(QDialog):
         ok_button.clicked.connect(self.accept)
 
         cancel_button = buttons.button(QDialogButtonBox.Cancel)
-        cancel_button.setText("Отмена")
+        cancel_button.setText(tr("Отмена"))
         cancel_button.setStyleSheet("""
         QPushButton {
             background-color: #a83e3e;

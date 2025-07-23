@@ -1,10 +1,13 @@
 import json
 import logging
 import os
+import shutil
 import sys
+import tempfile
 import uuid
 from pathlib import Path
 
+from filelock import FileLock
 from platformdirs import *
 
 CURRENT_VERSION = '1.0.4.1'  # Текущая версия бота
@@ -83,9 +86,40 @@ def load_money_management_data():
         return {}
 
 
+def validate_statistic_data(data):
+    return isinstance(data, dict) and "summary" in data and "trades" in data
+
+
 def save_statistic_data(statistic_data):
-    with open(fr'{data_dir}\statistic_data.json', 'w', encoding='utf-8') as f:
-        json.dump(statistic_data, f, indent=4, ensure_ascii=False)
+    if not validate_statistic_data(statistic_data):
+        print("❌ Некорректная структура данных. Сохранение отменено.")
+        return
+
+    path = os.path.join(data_dir, 'statistic_data.json')
+    lock_path = path + '.lock'
+    backup_path = path + '.bak'
+
+    with FileLock(lock_path):
+        # Создаём резервную копию, если файл уже есть
+        if os.path.exists(path):
+            shutil.copy2(path, backup_path)
+
+        # Сохраняем данные во временный файл
+        temp_fd, temp_path = tempfile.mkstemp(dir=data_dir, suffix='.tmp')
+        try:
+            with os.fdopen(temp_fd, 'w', encoding='utf-8') as tmp_file:
+                json.dump(statistic_data, tmp_file, indent=4, ensure_ascii=False)
+
+            # Атомарная замена основного файла
+            shutil.move(temp_path, path)
+
+        except Exception as e:
+            print(f"❌ Ошибка при сохранении: {e}")
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            # Восстанавливаем из резервной копии
+            if os.path.exists(backup_path):
+                shutil.copy2(backup_path, path)
 
 
 def load_statistic_data():
@@ -98,7 +132,6 @@ def load_statistic_data():
             },
             "trades": [],
         }
-
 
 def save_auth_data(auth_data):
     with open(fr'{data_dir}\auth_data.log', 'w', encoding='utf-8') as f:
