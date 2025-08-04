@@ -10,7 +10,7 @@ from pathlib import Path
 from filelock import FileLock
 from platformdirs import *
 
-CURRENT_VERSION = '1.0.4.1'  # Текущая версия бота
+CURRENT_VERSION = '1.0.4.2'  # Текущая версия бота
 
 appname = f"UTEConnect_{CURRENT_VERSION}"
 
@@ -133,6 +133,7 @@ def load_statistic_data():
             "trades": [],
         }
 
+
 def save_auth_data(auth_data):
     with open(fr'{data_dir}\auth_data.log', 'w', encoding='utf-8') as f:
         json.dump(auth_data, f, indent=4, ensure_ascii=False)
@@ -226,7 +227,8 @@ def load_additional_settings_data(reset=False):
                             {"start": "00:00", "end": "23:59"},
                         ]
                     },
-                }
+                },
+                "theme": "dark"
             }
             save_additional_settings_data(default_settings)
             return default_settings

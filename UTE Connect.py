@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QHeader
     QLineEdit, QLabel, QGroupBox, QHBoxLayout, QCheckBox, QVBoxLayout, QWidget, QScrollArea, QTimeEdit, QFrame, \
     QGridLayout, QPushButton, QDialog, QSpinBox, QTableWidget, QGraphicsOpacityEffect, QSizePolicy, QAbstractItemView
 from flask import Flask, request, abort
+from tqdm import tqdm
 
 from loggingfile import logging
 from mm_trading import OptionSeries
@@ -31,6 +32,8 @@ from programm_files import save_money_management_data, load_money_management_dat
     save_statistic_data
 from rc_icons import qInitResources
 from scrollbar_style import scrollbarstyle
+from themes import dark_theme, light_theme, blocked_cell, allowed_cell, allowed_color, transparent_text_color, \
+    background_color
 from utils import recalculate_summary
 
 qInitResources()
@@ -276,7 +279,7 @@ def query_example():
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, language):
         super().__init__()
         if getattr(sys, 'frozen', False):
             applicationPath = sys._MEIPASS
@@ -301,6 +304,10 @@ class MainWindow(QMainWindow):
         self.last_recv = None
 
         self.flask_running = False
+
+        # Пример, если хранишь тему в настройках
+        settings = load_additional_settings_data()
+        self.theme = settings.get("theme", "dark")
 
         # Режим ММ
         self.selected_mm_mode = 0
@@ -362,6 +369,8 @@ class MainWindow(QMainWindow):
         self.language_combo.currentIndexChanged.connect(self.on_language_changed)
         self.set_combo_by_data(self.language_combo, lang)
 
+
+
         self.type_account.clear()
         for key, label in self.ACCOUNT_LABELS.items():
             self.type_account.addItem(label, userData=key)
@@ -393,7 +402,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(None)
 
         # Добавляем текст поверх всех виджетов
-        self.overlay_text = TransparentText(self.tr("Версия") + f': {CURRENT_VERSION}', self)
+        self.overlay_text = TransparentText(self.tr("Версия") + f': {CURRENT_VERSION}', self, self.theme)
         self.update_text_position()  # Устанавливаем позицию текста
 
         # self.stats_overlay_time = TransparentText('', self)
@@ -450,11 +459,6 @@ class MainWindow(QMainWindow):
                                                          'NZDUSD BO': {'percent': 20, 'float': 5},
                                                          'USDCHF BO': {'percent': 20, 'float': 5}}})
 
-        # Скроллинг
-        self.trades_table.setStyleSheet(scrollbarstyle(margins=True))
-        self.manage_table.setStyleSheet(scrollbarstyle())
-        self.textBrowser.setStyleSheet(scrollbarstyle())
-        self.textBrowser.setOpenExternalLinks(True)
 
         # Инициализация новостного обновления
 
@@ -464,7 +468,7 @@ class MainWindow(QMainWindow):
         else:
             self.news_filter_enabled = False
 
-        self.language = 'en'
+        self.language = language
         self.news_updater = NewsUpdater(self, self.language)
 
         self.news_update_timer = QtCore.QTimer(self)
@@ -492,8 +496,126 @@ class MainWindow(QMainWindow):
         # Изначально сводка видна
         self.toggleSummaryButton.setText(self.tr("Скрыть сводку"))
 
+        # Тема Theme
+        self.theme_combo.addItem(self.tr("Тёмная"), userData="dark")
+        self.theme_combo.addItem(self.tr("Светлая"), userData="light")
+        self.theme_combo.currentIndexChanged.connect(self.switch_theme)
+
+
+        index = self.theme_combo.findData(self.theme)
+        if index != -1:
+            self.theme_combo.setCurrentIndex(index)
+        self.switch_theme()  # Применить стиль
+
         self.setMinimumSize(1360, 600)
         self.resize(1360, 600)  # ← Это заставляет окно запуститься в минимальном размере
+
+        self.update_mm_table(self.selected_mm_mode)
+
+    def switch_theme(self):
+        self.theme = self.theme_combo.currentData()
+
+        # Применяем стили ко всему приложению
+        if self.theme == 'light':
+            style_str = light_theme
+        else:
+            style_str = dark_theme
+
+        # Применяем стили ко всему приложению
+        QApplication.instance().setStyleSheet(style_str)
+
+        # Для таблиц нужны дополнительные настройки
+        self.fix_table_style(self.theme)
+
+        # Сохраняем в настройках
+        add_settings = load_additional_settings_data()
+        add_settings["theme"] = self.theme
+        save_additional_settings_data(add_settings)
+
+        self.btn_apply.click()
+
+        if hasattr(self, "manage_table"):
+            self.manage_table.setRowCount(0)
+            self.initManageTable()
+            self.saveData(nide_notification=True)
+
+        self.overlay_text.setStyleSheet(f"color: {transparent_text_color(self.theme)};")
+
+        # self.main_scroll_container.setStyleSheet(f"border: none; background-color: {background_color(self.theme)};")
+
+        if self.theme == 'light':
+            style_str = light_theme
+        else:
+            style_str = dark_theme
+
+        self.main_scroll_container.setStyleSheet(f"QWidget {{ border: none; background-color: {background_color(self.theme)}; }} " + style_str)
+
+    def fix_table_style(self, theme):
+        """Дополнительные настройки стилей для таблиц"""
+        if theme == 'light':
+            table_style = """
+                QTableWidget {
+                    background: white;
+                    color: black;
+                    border: 1px solid #dddddd;
+                }
+                QHeaderView::section {
+                    background-color: #f0f0f0;
+                    color: black;
+                    border: 1px solid #dddddd;
+                }
+            """
+            header_style = """
+                QHeaderView::section {
+                    background-color: #f0f0f0;
+                    color: black;
+                    border: 1px solid #dddddd;
+                }
+            """
+        else:
+            table_style = """
+                QTableWidget {
+                    background: rgb(12,17,47);
+                    color: white;
+                    border: 1px solid rgb(18, 26, 61);
+                }
+                QHeaderView::section {
+                    background-color: rgb(18, 26, 61);
+                    color: white;
+                    border: 1px solid rgb(18, 26, 61);
+                }
+            """
+            header_style = """
+                QHeaderView::section {
+                    background-color: rgb(18, 26, 61);
+                    color: white;
+                    border: 1px solid rgb(18, 26, 61);
+                }
+            """
+
+        # Применяем стили к таблицам
+        self.manage_table.setStyleSheet(table_style)
+        self.trades_table.setStyleSheet(table_style)
+        self.textBrowser.setStyleSheet(table_style)
+
+        # Применяем стили к заголовкам
+        self.manage_table.horizontalHeader().setStyleSheet(header_style)
+        self.trades_table.horizontalHeader().setStyleSheet(header_style)
+
+        # Для новостной таблицы, если она есть
+        if hasattr(self, 'news_table'):
+            self.news_table.setStyleSheet(table_style)
+            self.news_table.horizontalHeader().setStyleSheet(header_style)
+
+        # Скроллинг
+        self.trades_table.setStyleSheet(scrollbarstyle(margins=True, theme=self.theme))
+        self.manage_table.setStyleSheet(scrollbarstyle(theme=self.theme))
+        self.textBrowser.setStyleSheet(scrollbarstyle(theme=self.theme))
+        if hasattr(self, 'add_scroll_area'):
+            self.add_scroll_area.setStyleSheet(scrollbarstyle(theme=self.theme))
+
+        self.textBrowser.setOpenExternalLinks(True)
+
 
     def toggle_summary(self):
         """Переключает отображение сводки статистики"""
@@ -623,6 +745,7 @@ class MainWindow(QMainWindow):
         current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
         f = current_time.strftime("%d-%m-%Y %H:%M:%S")
         self.stats_overlay_time.setText(self.tr("Дата и время (МСК):") + f" {f}")
+        self.stats_overlay_time.setStyleSheet(f"font-weight: bold; color: {transparent_text_color(self.theme)};")
 
     @QtCore.pyqtSlot("QWidget*", "QWidget*")
     def on_focusChanged(self, old, now):
@@ -677,86 +800,20 @@ class MainWindow(QMainWindow):
         self.manage_table.setFrameStyle(QFrame.NoFrame)
         self.manage_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.manage_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.manage_table.setStyleSheet(self.manage_table.styleSheet() + """
-        QTableWidget {
-            background: rgb(12,17,47);
-            color: white;
-            border: 1px rgb(12,17,47);
-            font-size: 14px;
-        }
-        
 
-        """)
-
-        self.manage_table.horizontalHeader().setStyleSheet("""
-            QHeaderView::section {
-                background-color: rgb(18, 26, 61);
-                color: white;
-                padding: 2px;
-                border: 1px solid rgb(18, 26, 61);
-                font-weight: bold;
-            }
-        """)
 
         self.trades_table.setFrameStyle(QFrame.NoFrame)
+        self.trades_table.setStyleSheet(scrollbarstyle(margins=True, theme=self.theme))
         self.trades_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.trades_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.trades_table.setStyleSheet(self.trades_table.styleSheet() + """
-        QTableWidget {
-            background: rgb(12,17,47);
-            color: white;
-            border: 1px rgb(12,17,47);
-            font-size: 14px;
-        }
-        QHeaderView::section {
-            background-color: rgb(18, 26, 61);
-                color: white;
-                padding: 2px;
-                border: 1px solid rgb(18, 26, 61);
-                font-weight: bold;
-        }
-        
-
-        """)
-
-
-
         self.textBrowser.setFrameStyle(QFrame.NoFrame)
-        self.textBrowser.setStyleSheet(self.textBrowser.styleSheet() + """
-        QTextBrowser {
-                        background-color: rgb(18, 26, 61);
-                        color: white;
-                        border-radius: 5px;
-                        padding: 5px;
-                        font-size: 12px;
-        }
 
-        """)
 
         if hasattr(self, 'news_table'):
             self.news_table.setFrameStyle(QFrame.NoFrame)
             self.news_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             self.news_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            self.news_table.setStyleSheet(self.manage_table.styleSheet() + """
-                    QTableWidget {
-                        background: rgb(12,17,47);
-                        color: white;
-                        border: 1px rgb(12,17,47);
-                        font-size: 14px;
-                    }
-    
-    
-                    """)
 
-            self.news_table.horizontalHeader().setStyleSheet("""
-                        QHeaderView::section {
-                            background-color: rgb(18, 26, 61);
-                            color: white;
-                            padding: 2px;
-                            border: 1px solid rgb(18, 26, 61);
-                            font-weight: bold;
-                        }
-                    """)
 
     # Проверка версии
     def check_version(self):
@@ -787,15 +844,16 @@ class MainWindow(QMainWindow):
         self.settings = load_additional_settings_data()
 
         # Создаем основной контейнер с прокруткой
-        main_container = QWidget()
-        main_container.setStyleSheet("border: none;")
-        main_layout = QVBoxLayout(main_container)
+        self.main_scroll_container = QWidget()
+
+        main_layout = QVBoxLayout(self.main_scroll_container)
+
         # Создаем область прокрутки
-        scroll_area = QScrollArea()
-        scroll_area.setMinimumWidth(350)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet(scrollbarstyle())
+        self.add_scroll_area = QScrollArea()
+        self.add_scroll_area.setMinimumWidth(350)
+        self.add_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.add_scroll_area.setWidgetResizable(True)
+        self.add_scroll_area.setStyleSheet(scrollbarstyle(theme=self.theme))
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
 
@@ -962,14 +1020,7 @@ class MainWindow(QMainWindow):
 
             # Кнопка добавления нового интервала
             add_btn = QPushButton(self.tr('+ Добавить интервал'))
-            add_btn.setStyleSheet("""
-                QPushButton {
-                    font-size: 12px;
-                    padding: 5px;
-                    border-radius: 5px;
-                    background-color: #2a4b8d;
-                }
-            """)
+
             add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
             day_layout.addWidget(enabled_cb)
@@ -1002,11 +1053,11 @@ class MainWindow(QMainWindow):
         scroll_layout.addLayout(schedule_layout)
 
         # Устанавливаем содержимое в область прокрутки
-        scroll_area.setWidget(scroll_content)
-        main_layout.addWidget(scroll_area)
+        self.add_scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(self.add_scroll_area)
 
         # Устанавливаем контейнер в sideSettings
-        self.sideSettings.addWidget(main_container)
+        self.sideSettings.addWidget(self.main_scroll_container)
 
         self.created_additional_settings = True
 
@@ -1088,8 +1139,9 @@ class MainWindow(QMainWindow):
         self.news_filter_toggle = QPushButton(self.tr("Включить фильтр"))
         self.news_filter_toggle.setStyleSheet("""
         background-color: #121a3d;
-        padding: 10px;
-        border-radius: 3px;
+        border-radius: 5px;
+            padding: 8px;
+            font-size: 12px;
         """)
         self.news_filter_toggle.setCheckable(True)
         self.news_filter_toggle.setChecked(False)
@@ -1097,11 +1149,7 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.news_filter_toggle)
 
         self.news_settings_btn = QPushButton(self.tr("Настройка фильтра"))
-        self.news_settings_btn.setStyleSheet("""
-                background-color: #121a3d;
-                padding: 10px;
-                border-radius: 3px;
-                """)
+
         self.news_settings_btn.clicked.connect(self.openNewsFilterSettings)
         buttons_layout.addWidget(self.news_settings_btn)
 
@@ -1472,7 +1520,7 @@ class MainWindow(QMainWindow):
                     "end": interval["end_time"].time().toString("HH:mm")
                 })
 
-            schedule_settings[self.weekdays.index(day)] = {
+            schedule_settings[str(self.weekdays.index(day))] = {
                 "enabled": day_settings["enabled_cb"].isChecked(),
                 "intervals": intervals
             }
@@ -1503,6 +1551,7 @@ class MainWindow(QMainWindow):
             # Добавлен метод проверки партнерского ID
             try:
                 self.bot = OptionSeries(url=url, token=token, userid=user_id, auth_data=load_auth_data(), window=self)
+
                 for answer_text in self.bot.serv_answ:
                     if answer_text is False:
                         continue
@@ -1511,6 +1560,7 @@ class MainWindow(QMainWindow):
                         self.log_message(self.tr("Соединение установлено"))
                         if hasattr(self.bot, 'pair_list'):
                             self.createAdditionalSettings(self.bot.pair_list)
+
                     else:
                         self.log_message(answer_text)
                     if "partner_id" not in answer_text:
@@ -1769,15 +1819,15 @@ class MainWindow(QMainWindow):
                     elif col == 6:
                         if value == "SELL":
                             item.setStyleSheet(
-                                f"background-color: #11173b;border-radius: 0px; color: {red_color};font-weight: bold;")
+                                f"background-color: {allowed_color(self.theme)};border-radius: 0px; color: {red_color};font-weight: bold;")
                         elif value == "BUY":
                             item.setStyleSheet(
-                                f"background-color: #11173b;border-radius: 0px; color: {green_color};font-weight: bold;")
+                                f"background-color: {allowed_color(self.theme)};border-radius: 0px; color: {green_color};font-weight: bold;")
                         elif float(trade["open_price"]) == float(trade["close_price"]):
                             item.setStyleSheet(
-                                f"background-color: #11173b;border-radius: 0px; color: white;font-weight: bold;")
+                                f"background-color: {allowed_color(self.theme)};border-radius: 0px; color: white;font-weight: bold;")
                     else:
-                        item.setStyleSheet("background-color: #11173b;border-radius: 0px;")
+                        item.setStyleSheet(f"background-color: {allowed_color(self.theme)};border-radius: 0px;")
 
                     # Рассчитываем ширину текста
                     font_metrics = QFontMetrics(item.font())
@@ -1810,16 +1860,38 @@ class MainWindow(QMainWindow):
     def delete_statistic(self):
         try:
 
-            # Подтверждение удаления
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Question)
+            msg_box.setWindowTitle(self.tr("Подтверждение удаления"))
+            msg_box.setText(self.tr("Вы уверены, что хотите удалить выбранную статистику?"))
+
+            # Языкозависимые подписи
+            if self.language == 'ru':
+                yes_text = "Да"
+                no_text = "Нет"
+            else:
+                yes_text = "Yes"
+                no_text = "No"
+
+
+            # Добавляем кастомные кнопки
+            yes_button = msg_box.addButton(yes_text, QMessageBox.YesRole)
+            no_button = msg_box.addButton(no_text, QMessageBox.NoRole)
+
+            msg_box.exec_()
+
+            print(msg_box.clickedButton() == yes_button)
+
+            if not msg_box.clickedButton() == yes_button:
+                return
+
+            '''# Подтверждение удаления
             confirm = QMessageBox.question(
                 self,
                 self.tr("Подтверждение удаления"),
                 self.tr("Вы уверены, что хотите удалить выбранную статистику?"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-
-            if confirm != QMessageBox.StandardButton.Yes:
-                return  # Отмена пользователем
+            )'''
 
             data = load_statistic_data()
             all_trades = data.get("trades", [])
@@ -1976,7 +2048,7 @@ class MainWindow(QMainWindow):
                     item.setText(str(on_loss))
                 else:
                     item.setValidator(self.digit_validator)
-                item.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
+                item.setStyleSheet(allowed_cell(self.theme))
                 item.setMinimumWidth(120)
                 # if header:
                     # header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
@@ -2013,7 +2085,7 @@ class MainWindow(QMainWindow):
                 else:
                     new_widget.setValidator(self.digit_validator)
 
-                new_widget.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
+                new_widget.setStyleSheet(allowed_cell(self.theme))
                 new_widget.setMinimumWidth(120)
                 if header:
                     header.setSectionResizeMode(col, QHeaderView.Stretch)
@@ -2029,7 +2101,7 @@ class MainWindow(QMainWindow):
 
             cnt_item.setDisabled(True)
             cnt_item.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            cnt_item.setStyleSheet("background-color: #121a3d;border-radius: 0px;")
+            cnt_item.setStyleSheet(allowed_cell(self.theme))
             # cnt_item.setMaximumWidth(40)
             self.manage_table.setCellWidget(rowCount, 0, cnt_item)
 
@@ -2263,39 +2335,23 @@ class MainWindow(QMainWindow):
                 if col in [MM_TABLE_FIELDS["WIN"], MM_TABLE_FIELDS["LOSS"]]:
                     widget.setDisabled(disable_fields)
                     if disable_fields:
-                        widget.setStyleSheet("""
-                            QLineEdit {
-                                background-color: #192142;border-radius: 0px; color: #8996c7;
-                            }
-                        """)
+                        widget.setStyleSheet(blocked_cell(self.theme))
                     else:
-                        widget.setStyleSheet("""
-                                QLineEdit {
-                                    background-color: #121a3d;border-radius: 0px;
-                                }
-                            """)
+                        widget.setStyleSheet(allowed_cell(self.theme))
                 else:
                     if row > 0:
                         widget.setDisabled(text == MM_MODES[0])
                         if text == MM_MODES[0]:
-                            widget.setStyleSheet("""
-                                    QLineEdit {
-                                        background-color: #192142;border-radius: 0px; color: #8996c7;
-                                    }
-                                """)
+                            widget.setStyleSheet(blocked_cell(self.theme))
                         else:
-                            widget.setStyleSheet("""
-                                    QLineEdit {
-                                        background-color: #121a3d;border-radius: 0px;
-                                    }
-                                """)
+                            widget.setStyleSheet(allowed_cell(self.theme))
         self.selected_mm_mode = int(text)
 
 class TransparentText(QLabel):
-    def __init__(self, text, parent):
+    def __init__(self, text, parent, theme):
         super().__init__(text, parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # Прозрачный фон
-        self.setStyleSheet("color: rgba(255, 255, 255, 150);")  # Полупрозрачный текст (белый, 150/255 прозрачности)
+        self.setStyleSheet(f"color: {transparent_text_color(theme)};")  # Полупрозрачный текст (белый, 150/255 прозрачности)
         self.setFont(QFont("Arial", 8, QFont.Weight.Bold))
         self.adjustSize()  # Автоматический размер под текст
         self.move(50, 50)  # Позиция текста внутри окна
@@ -2304,7 +2360,7 @@ class TransparentText(QLabel):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(0, 0, 0, 30))  # Полупрозрачный черный фон под текстом
+        painter.setBrush(QColor(0, 0, 0, 0))  # Полупрозрачный черный фон под текстом
         painter.drawRect(self.rect())  # Рисуем фон
         super().paintEvent(event)
 
@@ -2314,6 +2370,7 @@ def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.abspath(relative_path)
+
 
 
 if __name__ == '__main__':
@@ -2328,7 +2385,6 @@ if __name__ == '__main__':
         # QtCore.QDir.addSearchPath('', '/')
 
         app_qt = QApplication(sys.argv)
-
         translator = QTranslator()
         lang = load_language()
         if lang != 'ru':
@@ -2337,7 +2393,7 @@ if __name__ == '__main__':
             else:
                 print("Не удалось загрузить перевод")
 
-        main_app = MainWindow()
+        main_app = MainWindow(lang)
         main_app.show()
         logging.info('APP started!')
         sys.exit(app_qt.exec())

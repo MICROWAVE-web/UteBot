@@ -1,18 +1,26 @@
-def scrollbarstyle(margins=False):
+def scrollbarstyle(margins=False, theme="dark"):
+    if theme == "light":
+        background = "#f0f0f0"
+        handle_color = "#cccccc"
+        border_color = "#e0e0e0"
+    else:  # dark theme
+        background = "#1a1a4f"
+        handle_color = "#28368a"
+        border_color = "#2A2929"
+
     return f'''
 /* ===================== QScrollBar ======================= */
 QScrollBar:vertical {{
-    background: #1a1a4f;
+    background: {background};
     width: {19 if margins else 10}px;
     margin: 0px 0px 0px {8 if margins else 0}px;   
-    border: 0px transparent #2A2929;
+    border: 0px transparent {border_color};
     border-radius: 4px;
 }}
 QScrollBar::handle:vertical {{
-    background-color: #28368a;                    
+    background-color: {handle_color};                    
     min-height: 5px;
     border-radius: 4px;
-
 }}
 QScrollBar::sub-line:vertical {{
     margin: 0px 0px 0px 0px;
@@ -29,16 +37,15 @@ QScrollBar::add-line:vertical {{
     subcontrol-origin: margin;
 }}
 
-
 QScrollBar:horizontal {{
-    background: #1a1a4f;
+    background: {background};
     height: {18 if margins else 10}px;
     margin: {8 if margins else 0}px 0px 0px 0px;    
-    border: 1px transparent #2A2929;
+    border: 1px transparent {border_color};
     border-radius: 4px;
 }}
 QScrollBar::handle:horizontal {{
-    background-color: #28368a;                    
+    background-color: {handle_color};                    
     min-height: 5px;
     border-radius: 4px;
 }}
@@ -72,5 +79,6 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
 }}
 '''
 
+# Пример использования
 if __name__ == "__main__":
-    print(scrollbarstyle())
+    print(scrollbarstyle(margins=True, theme="light"))

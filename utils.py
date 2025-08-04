@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Tuple
 
 import pytz
+from backports.zoneinfo import ZoneInfo
 
 from loggingfile import logging
 from programm_files import load_statistic_data, save_statistic_data
@@ -49,92 +50,41 @@ def count_expiration_type_1(candle_long_in_minutes):
             return new_data.strftime('%H:%M:%S')  # Возвращаем найденный делитель
 
 
-# Определяем временные интервалы
-time_intervals = [
-    ("00:00:00", "06:00:00"),
-    ("07:55:00", "08:01:59"),
-    ("16:55:00", "17:01:59"),
-    ("17:55:00", "18:01:59"),
-    ("18:55:00", "19:01:59"),
-    ("19:55:00", "20:01:59"),
-    # ("20:30:00", "23:59:59"),
-    ("20:55:00", "21:01:59"),
-    ("21:55:00", "22:01:59"),
-    ("22:55:00", "23:01:59"),
-    ("23:25:00", "23:31:59"),
-    ("23:30:00", "23:59:59"),
-]
-
-
-def parse_datetime(time_str, next_day=False):
-    """Парсим строковое время и добавляем день, если нужно. Все датetime объекты будут с привязкой к часовому поясу UTC+3"""
-    now = datetime.now(pytz.timezone('Etc/GMT-3'))  # Текущее время в нужной временной зоне
-    dt = datetime.strptime(time_str, "%H:%M:%S").replace(year=now.year, month=now.month, day=now.day,
-                                                         tzinfo=pytz.timezone(
-                                                             'Etc/GMT-3'))  # Привязываем к часовому поясу
-    if next_day:
-        dt += timedelta(days=1)
-    return dt
-
-
-def check_overlap(point_time, start, end):
-    """Проверяем, есть ли пересечение или вхождение двух интервалов."""
-    # Сравниваем все объекты с часовым поясом UTC+3
-    return start <= point_time <= end
-
-
-def is_time_interval_in_schedule(point_time, intervals, next_day=False):
-    """Проверяем, попадает ли интервал в ежедневное расписание."""
-    for start, end in intervals:
-        start_time = parse_datetime(start)
-        end_time = parse_datetime(end, next_day)
-
-        if check_overlap(point_time, start_time, end_time):
+def check_unix_interval(point_time_unix: int, intervals: List[tuple]) -> bool:
+    """Проверка, попадает ли unix-время в один из заданных интервалов."""
+    for start_unix, end_unix in intervals:
+        print(start_unix, point_time_unix, end_unix)
+        if start_unix < point_time_unix < end_unix:
             return True
-
     return False
 
 
-def check_weekend_overlap(end_time):
-    """Проверка, попадает ли интервал в выходные дни."""
-    end_day_of_week = end_time.weekday()
-
-    # Проверка для пятницы-субботы-воскресенья
-    if end_day_of_week in [5, 6]:
-        return True
-
-    return False
+def check_weekend_overlap(point_time: datetime) -> bool:
+    """Проверка на выходные (суббота/воскресенье)."""
+    return point_time.weekday() in [5, 6]
 
 
-# Функция для проверки доступности в заданном интервале
-def check_availability_time_range(serial_start_points: List[timedelta]):
-    """Проверка доступности для открытия опциона."""
-    # Получаем текущее время в часовом поясе UTC+3
-    current_time = datetime.now(pytz.utc)
-    current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
-    for ind, serial_start_point in enumerate(serial_start_points, start=0):
+def check_availability_time_range(serial_start_points: List[timedelta], unix_intervals) -> Tuple[bool, str]:
+    """Проверка доступности времени для действия."""
+
+    unix_intervals = [
+        (unix_intervals.get(i), unix_intervals.get(i + 1)) for i in range(1, 21, 2)
+        if unix_intervals.get(i) and unix_intervals.get(i + 1)
+    ]
+
+    current_time = datetime.now(ZoneInfo("Europe/Moscow"))
+
+    for serial_start_point in serial_start_points:
         point_time = current_time + serial_start_point
-        if point_time.day > current_time.day:
-            next_day = True
-        else:
-            next_day = False
+        point_time_unix = int(point_time.timestamp())
 
-        # Проверка на выходные только для пятницы, субботы и воскресенья
+        # Проверка на выходные
         if check_weekend_overlap(point_time):
             return False, "weekend"
 
-        # Проверяем конец серии
-        if ind == len(serial_start_points) - 1 and 1 == 2:
-            time_intervals_end = [
-                # ("00:00:00", "05:00:00"),
-                # ("20:30:00", "23:59:59"),
-            ]
-            logging.debug(f"last_time_point: {point_time}")
-            if is_time_interval_in_schedule(point_time, time_intervals_end, next_day):
-                return False, "low"
-        else:
-            if is_time_interval_in_schedule(point_time, time_intervals, next_day):
-                return False, "low"
+        # Проверка на попадание во временные интервалы (из one_percent_time)
+        if check_unix_interval(point_time_unix, unix_intervals):
+            return False, "low"
 
     return True, ""
 

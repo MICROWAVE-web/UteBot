@@ -11,7 +11,8 @@ from PyQt5.QtCore import QCoreApplication
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGroupBox, QHBoxLayout, QSpinBox, QDialog, QCheckBox, QDialogButtonBox
 
-from programm_files import save_news
+from programm_files import save_news, load_additional_settings_data
+from themes import light_theme, dark_theme
 
 
 def tr(text):
@@ -221,12 +222,22 @@ class NewsFilterDialog(QDialog):
         layout.addWidget(buttons)
 
         self.setStyleSheet("""
-                    background: rgb(12,17,47);
-                    color: white;
                     border-radius: 5px;
                     padding: 5px;
                     font-size: 12px;
                 """)
+
+        # Пример, если хранишь тему в настройках
+        settings = load_additional_settings_data()
+        self.theme = settings.get("theme", "dark")
+
+        if self.theme == 'light':
+            style_str = light_theme
+        else:
+            style_str = dark_theme
+
+        # Применяем стили ко всему приложению
+        self.setStyleSheet(style_str)
 
     def get_settings(self):
         """Возвращает текущие настройки"""

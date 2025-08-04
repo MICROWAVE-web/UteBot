@@ -94,6 +94,21 @@ class OptionSeries:
 
         self.update_mm_data()
 
+        self.one_percent_time = None
+
+        self.unix_intervals = None
+
+        self.request_unix_intervals()
+
+    def request_unix_intervals(self):
+        time_bo_json = self._send_request("one_percent_time", lambda msg: True)
+        time_bo = json.loads(time_bo_json)
+
+        # Преобразуем ключи в целые числа и отсортируем по ключу
+        time_bo = {int(k): v for k, v in time_bo.items()}
+        self.unix_intervals = time_bo
+
+
     def clean_counters(self):
         self.COUNTERS = {
             "type_1": {},  # Храним пару -> индекс
@@ -164,7 +179,7 @@ class OptionSeries:
         # Текущее время
         now = datetime.now(pytz.timezone('Etc/GMT-3'))
         current_time = now.time()
-        current_day = now.strftime("%a")  # Формат: Mon, Tue...
+        # current_day = now.strftime("%a")  # Формат: Mon, Tue...
         day_index = str(now.weekday())
         print(f"День недели: {day_index}")
 
@@ -180,13 +195,16 @@ class OptionSeries:
         }
 
         # current_day_ru = day_mapping.get(current_day)
+        print(self.window.settings["schedule"])
         if day_index not in self.window.settings["schedule"]:
+            print('Дня нет ёпты')
             return False, "wrong_time", None
 
         day_settings = self.window.settings["schedule"][day_index]
 
         # Проверка включен ли день
         if not day_settings["enabled"]:
+            print('Проверка включен ли день, "wrong_time", None')
             return False, "wrong_time", None
 
         # Проверка временных интервалов
@@ -196,6 +214,7 @@ class OptionSeries:
 
             if start_time <= current_time <= end_time:
                 return True, "", None
+
 
         return False, "wrong_time", None
 
@@ -298,7 +317,7 @@ class OptionSeries:
                 serial_time_long += expiration_data["time_delta"]
                 serial_start_points.append(serial_time_long)
 
-            chkup, reason = check_availability_time_range(serial_start_points)
+            chkup, reason = check_availability_time_range(serial_start_points, self.unix_intervals)
             if not chkup and reason == "weekend":
                 text = f"{'Серия опционов' if self.window.selected_mm_mode == 2 else 'Опцион'} пересекается " \
                        f"с выходных днём. " \
@@ -431,7 +450,6 @@ class OptionSeries:
             if not self.last_opened_options_data:
                 time.sleep(0.1)
                 continue
-            print(self.last_opened_options_data)
             option_data = self.last_opened_options_data.pop(-1)
             option_id = option_data.get("api_massive_option")
             if option_id:
