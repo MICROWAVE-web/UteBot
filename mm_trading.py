@@ -5,6 +5,7 @@ import threading
 import time
 import uuid
 from datetime import timedelta, datetime
+from pprint import pprint
 
 import pytz
 from PyQt5.QtCore import QCoreApplication
@@ -42,7 +43,7 @@ def exeptions_determniant(err):
 class OptionSeries:
     def __init__(self, auth_data, window, url, userid, token):
 
-        self.last_opened_options_data = []
+        self.last_opened_options_data = {}
 
         self.window = window
         self.account_type = auth_data["selected_type_account"]
@@ -107,7 +108,6 @@ class OptionSeries:
         # Преобразуем ключи в целые числа и отсортируем по ключу
         time_bo = {int(k): v for k, v in time_bo.items()}
         self.unix_intervals = time_bo
-
 
     def clean_counters(self):
         self.COUNTERS = {
@@ -214,7 +214,6 @@ class OptionSeries:
 
             if start_time <= current_time <= end_time:
                 return True, "", None
-
 
         return False, "wrong_time", None
 
@@ -443,36 +442,55 @@ class OptionSeries:
         # ^^^ Увеличение счетчико происходит в option finished
 
     def _handle_pending_option_async(self, pair_name, up_dn, sum_option, time_h, time_m, time_s, percent_par):
+        logging.debug(f"_handle_pending_option_async({self}, {pair_name}, {up_dn}, {sum_option}, {time_h}, {time_m}, {time_s}, {percent_par})")
+        sum_option = float(sum_option)
+
         t1 = datetime.now()
         td = timedelta(seconds=3)
 
         while datetime.now() - t1 < td:
             if not self.last_opened_options_data:
+                logging.debug("Пиздец")
                 time.sleep(0.1)
                 continue
-            option_data = self.last_opened_options_data.pop(-1)
-            option_id = option_data.get("api_massive_option")
-            if option_id:
-                option_id = option_id[0].get("option_id")
-            if option_id:
-                pending_data = {
-                    "type_account": self.account_type,
-                    "asset": pair_name,
-                    "open_time": datetime.now(pytz.timezone('Etc/GMT-3')).strftime("%d-%m-%Y %H:%M:%S"),
-                    "expiration": f"{time_h}:{time_m}:{time_s}",
-                    "close_time": "⌛",
-                    "open_price": "⌛",
-                    "trade_type": 'BUY' if up_dn == 'up' else 'SELL',
-                    "close_price": "⌛",
-                    "points": "⌛",
-                    "volume": float(sum_option),
-                    "refund": 0,
-                    "percentage": f"{percent_par}%" if percent_par else "-",
-                    "result": "⌛",
-                    "loss_refund": False
-                }
-                add_pending_option_to_statistic(option_id, pending_data)
 
+            logging.debug(pair_name, sum_option)
+            logging.debug(self.last_opened_options_data)
+            logging.debug("_______________________")
+            logging.debug("")
+            print()
+
+            for option_id, option_data in self.last_opened_options_data.items():
+                symbol = option_data.get("symbol")
+                summ = float(option_data.get("sum"))
+
+                option_id_to_delete = None
+                if symbol == pair_name and summ == sum_option:
+                    pending_data = {
+                        "type_account": self.account_type,
+                        "asset": pair_name,
+                        "open_time": datetime.now(pytz.timezone('Etc/GMT-3')).strftime("%d-%m-%Y %H:%M:%S"),
+                        "expiration": f"{time_h}:{time_m}:{time_s}",
+                        "close_time": "⌛",
+                        "open_price": "⌛",
+                        "trade_type": 'BUY' if up_dn == 'up' else 'SELL',
+                        "close_price": "⌛",
+                        "points": "⌛",
+                        "volume": sum_option,
+                        "refund": 0,
+                        "percentage": f"{percent_par}%" if percent_par else "-",
+                        "result": "⌛",
+                        "loss_refund": False
+                    }
+                    logging.debug(f"add_pending_option_to_statistic({option_id}, {pending_data})")
+                    add_pending_option_to_statistic(option_id, pending_data)
+
+                if option_id_to_delete:
+                    del self.last_opened_options_data[option_id_to_delete]
+
+            else:
+                time.sleep(0.1)
+                continue
         self.window.btn_apply.click()
 
     def option_finished(self, option_data):
@@ -529,8 +547,6 @@ class OptionSeries:
         elif self.window.selected_mm_mode == 1 and self.MT4_SIGNALS["type_1"].get(option_symbol):
             # mt4_pair, mt4_direct = self.MT4_SIGNALS["type_1"][option_symbol]
             pass
-
-
 
 
         elif self.window.selected_mm_mode == 2 and self.MT4_SIGNALS["type_2"].get(option_symbol):
@@ -720,9 +736,13 @@ class OptionSeries:
 
                 if "info_open_option" in data:
                     logging.debug(data)
-                    if data.get("api_massive_option", [{}])[0].get("option_id") not in [
+
+                    for opt in data.get("api_massive_option", []):
+                        self.last_opened_options_data[opt.get("option_id")] = opt
+
+                    """if data.get("api_massive_option", [{}])[0].get("option_id") not in [
                         d.get("api_massive_option", [{}])[0].get("option_id") for d in self.last_opened_options_data]:
-                        self.last_opened_options_data.append(data)
+                        self.last_opened_options_data.append(data)"""
 
             except json.JSONDecodeError:
                 pass
@@ -739,6 +759,7 @@ class OptionSeries:
     def on_error(self, ws, error):
         self.connection_established.set()
         logging.exception("Exception occurred")
+        self.reconnect()
 
     def _send_request(self, message, condition):
         req_id = str(uuid.uuid4())
@@ -859,5 +880,3 @@ class OptionSeries:
 
 if __name__ == '__main__':
     url = "wss://2ute.ru:100"
-    token = "8f21b220ff1d338ac7d5f38849b43a669bd22030"
-    user_id = "14669"

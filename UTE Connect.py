@@ -22,6 +22,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QHeader
 from flask import Flask, request, abort
 from tqdm import tqdm
 
+from disclaimer_text import DisclaimerWindow
 from loggingfile import logging
 from mm_trading import OptionSeries
 from mm_types import MM_MODES
@@ -512,6 +513,18 @@ class MainWindow(QMainWindow):
 
         self.update_mm_table(self.selected_mm_mode)
 
+        # Показываем окно отказа от ответственности при старте
+        self.disclaimer_timer = QtCore.QTimer(self)
+        self.disclaimer_timer.timeout.connect(self.show_disclaimer)
+        self.disclaimer_timer.start(1000)
+
+    def show_disclaimer(self):
+        # Создаём и отображаем окно отказа
+        self.disclaimer = DisclaimerWindow()
+        self.disclaimer.show()
+        self.disclaimer.setFocus()
+        self.disclaimer_timer.stop()
+
     def switch_theme(self):
         self.theme = self.theme_combo.currentData()
 
@@ -541,7 +554,6 @@ class MainWindow(QMainWindow):
 
         self.overlay_text.setStyleSheet(f"color: {transparent_text_color(self.theme)};")
 
-        # self.main_scroll_container.setStyleSheet(f"border: none; background-color: {background_color(self.theme)};")
 
         if self.theme == 'light':
             style_str = light_theme
@@ -1342,24 +1354,25 @@ class MainWindow(QMainWindow):
                 before_min = settings.get('before', 0)
                 after_min = settings.get('after', 0)
 
-            else:
-
+            elif filter_settings:
                 # Переопределяем настройками фильтра по важности
 
-                if filter_settings:
-                    importance = news.get('importance', '').lower()
-                    if importance == 'low':
-                        before_min = filter_settings.get('low_before', 0)
-                        after_min = filter_settings.get('low_after', 0)
-                    elif importance == 'medium':
-                        before_min = filter_settings.get('med_before', 0)
-                        after_min = filter_settings.get('med_after', 0)
-                    elif importance == 'high':
-                        before_min = filter_settings.get('high_before', 0)
-                        after_min = filter_settings.get('high_after', 0)
-                    else:
-                        logging.warning(f"Не известная {importance=}")
-                        continue
+                importance = news.get('importance', '').lower()
+                if importance == 'low':
+                    before_min = filter_settings.get('low_before', 0)
+                    after_min = filter_settings.get('low_after', 0)
+                elif importance == 'medium':
+                    before_min = filter_settings.get('med_before', 0)
+                    after_min = filter_settings.get('med_after', 0)
+                elif importance == 'high':
+                    before_min = filter_settings.get('high_before', 0)
+                    after_min = filter_settings.get('high_after', 0)
+                else:
+                    logging.warning(f"Не известная {importance=}")
+                    continue
+
+            else:
+                continue
 
             print('Новостный фильтр: ', before_min, after_min)
             # Пропуск если интервалы не заданы
@@ -1778,7 +1791,7 @@ class MainWindow(QMainWindow):
             self.trades_table.setRowCount(len(trades))  # Устанавливаем кол-во строк
 
             green_color = "rgb(40,167,69)"
-            red_color = "rgb(208,0,0)"
+            red_color = "rgb(168,62,62)"
             gray_color = "rgb(147,147,147)"
 
             trade_label = ["type_account", "asset", "open_time", "expiration", "close_time",
@@ -1794,7 +1807,7 @@ class MainWindow(QMainWindow):
                     value = str(trade.get(key, "N/A"))
 
                     if key == 'points' and value not in ["⌛", "N/A"]:
-                        value = f"{float(value):.10f}".rstrip('0').rstrip('.')
+                        value = f"{-float(value):.10f}".rstrip('0').rstrip('.')
 
                     item = QLineEdit()
                     if col == 0:
@@ -2323,7 +2336,7 @@ class MainWindow(QMainWindow):
         # Обновляем все строки в столбце "Тип ММ"
         for row in range(self.manage_table.rowCount()):
             combo = self.manage_table.cellWidget(row, MM_TABLE_FIELDS["Тип ММ"])
-            combo.setText(text)
+            combo.setText(str(text))
 
         # Определяем, следует ли отключать элементы в зависимости от режима
         disable_fields = text in [MM_MODES[0], MM_MODES[1]]

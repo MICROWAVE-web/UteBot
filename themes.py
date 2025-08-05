@@ -71,13 +71,19 @@ dark_theme = """
     }
 
     /* Поля ввода */
-    QLineEdit, QComboBox, QSpinBox, QDateTimeEdit, QTimeEdit {
+    QTextEdit, QLineEdit, QComboBox, QSpinBox, QDateTimeEdit, QTimeEdit {
         background-color: rgb(18, 26, 61);
         color: white;
         border-radius: 5px;
         padding: 5px 8px;
         font-size: 12px;
     }
+    
+    #disclaimerWindow {
+        background-color: rgb(13, 17, 48);
+        color: white;
+    }
+        
 
     /* Таблицы */
     QTableWidget {
@@ -157,35 +163,53 @@ dark_theme = """
     }
     
     QDateTimeEdit {
-        background-color: rgb(18, 26, 61);
-        color: white;
-        border-radius: 5px;
-        padding: 8px;
-        font-size: 12px;
-        }
-        QDateTimeEdit::hover {
-        cursor: pointer;
-        }
-        QDateTimeEdit::drop-down{
-        image: url(":/icons/arrow.ico");
-        width:12px;
-        margin-right: 8px;
-        }
-        QCalendarWidget QToolButton#qt_calendar_prevmonth {
-        qproperty-icon:url(":/icons/arrow-left.ico");
-        }
-        QCalendarWidget QToolButton#qt_calendar_nextmonth {
-        qproperty-icon: url(":/icons/arrow-right.ico");
-        }
-        QCalendarWidget QHeaderView {
-        background-color: #0078D7; /* Цвет фона заголовка */
-        color: white; /* Цвет текста */
-        font-weight: bold; /* Жирный шрифт */
-        }
-    
-        QCalendarWidget QTableView {
-        alternate-background-color: rgb(28, 36, 71);
-        }
+    background-color: rgb(18, 26, 61); /* Светлый фон */
+    color: black; /* Тёмный текст */
+    border: none;
+    border-radius: 5px;
+    padding: 8px;
+    font-size: 12px;
+}
+
+QDateTimeEdit::hover {
+    cursor: pointer;
+}
+
+QDateTimeEdit::drop-down {
+    image: url(":/icons/arrow.ico"); /* Используется та же иконка */
+    width: 12px;
+    margin-right: 8px;
+}
+
+QCalendarWidget QToolButton#qt_calendar_prevmonth {
+    qproperty-icon: url(":/icons/arrow-left.ico");
+}
+
+QCalendarWidget QToolButton#qt_calendar_nextmonth {
+    qproperty-icon: url(":/icons/arrow-right.ico");
+}
+
+QCalendarWidget QToolButton {
+    background-color: #0d1130;
+}
+
+QCalendarWidget QToolButton::hover {
+    background-color: rgb(18, 26, 61);
+}
+
+QCalendarWidget QMenu {
+    background-color: #0d1130;
+}
+QCalendarWidget QWidget {
+    background-color: #0d1130;
+}
+
+
+
+QCalendarWidget QTableView {
+    background-color: rgb(18, 26, 61); 
+    alternate-background-color: rgb(13,17,48); 
+}
                                             
         QSplitter::handle {
         image: url(":/icons/pill.ico");
@@ -393,6 +417,14 @@ QCalendarWidget QToolButton#qt_calendar_prevmonth {
 QCalendarWidget QToolButton#qt_calendar_nextmonth {
     qproperty-icon: url(":/icons/dark/arrow-right.ico");
 }
+
+QCalendarWidget QMenu {
+    background-color: #e0e0e0;
+}
+QCalendarWidget QWidget {
+    background-color: #e0e0e0;
+}
+
 
 QCalendarWidget QHeaderView {
     background-color: #e0e0e0; /* Светлый фон заголовка */

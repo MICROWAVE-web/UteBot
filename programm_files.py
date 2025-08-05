@@ -10,7 +10,7 @@ from pathlib import Path
 from filelock import FileLock
 from platformdirs import *
 
-CURRENT_VERSION = '1.0.4.2'  # Текущая версия бота
+CURRENT_VERSION = '1.0.4.3'  # Текущая версия бота
 
 appname = f"UTEConnect_{CURRENT_VERSION}"
 
