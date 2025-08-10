@@ -53,7 +53,6 @@ def count_expiration_type_1(candle_long_in_minutes):
 def check_unix_interval(point_time_unix: int, intervals: List[tuple]) -> bool:
     """Проверка, попадает ли unix-время в один из заданных интервалов."""
     for start_unix, end_unix in intervals:
-        print(start_unix, point_time_unix, end_unix)
         if start_unix < point_time_unix < end_unix:
             return True
     return False

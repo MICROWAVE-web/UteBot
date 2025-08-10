@@ -4,24 +4,144 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="mm_trading.py" line="147"/>
+        <location filename="mm_trading.py" line="155"/>
         <source>Новостной фильтр</source>
         <translation>News filter</translation>
     </message>
     <message>
-        <location filename="mm_trading.py" line="149"/>
+        <location filename="mm_trading.py" line="157"/>
         <source>Разрешенные валютные пары</source>
         <translation>Allowed currency pairs</translation>
     </message>
     <message>
-        <location filename="mm_trading.py" line="151"/>
+        <location filename="mm_trading.py" line="159"/>
         <source>Расписание</source>
         <translation>Timetable</translation>
     </message>
     <message>
-        <location filename="mm_trading.py" line="156"/>
+        <location filename="mm_trading.py" line="164"/>
         <source>Торговля запрещена настройками для</source>
         <translation>Trading is prohibited by the settings for</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="237"/>
+        <source>{pair} сделка не открыта, есть открытый опцион {pair}</source>
+        <translation>{pair} the trade is not open, there is an open option {pair}</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="232"/>
+        <source>{pair} сделка не открыта, есть открытый опцион.</source>
+        <translation>{pair} the trade is not open, but there is an open option.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="314"/>
+        <source>Серия опционов пересекается с выходных днём. Открытие опциона ({pair}:{direction}) остановлено.</source>
+        <translation>The option series intersects with the weekend. The option opening ({pair}:{direction}) has been stopped.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="315"/>
+        <source>Опцион пересекается с выходных днём. Открытие опциона ({pair}:{direction}) остановлено.</source>
+        <translation>The option crosses a weekend. The option opening ({pair}:{direction}) is stopped.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="321"/>
+        <source>Серия опционов пересекается с расписанием снижения выплат. Открытие опциона ({pair}:{direction}) остановлено.</source>
+        <translation>The option series intersects with the payout reduction schedule. The option ({pair}:{direction}) has been stopped.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="322"/>
+        <source>Опцион пересекается с расписанием снижения выплат. Открытие опциона ({pair}:{direction}) остановлено.</source>
+        <translation>The option intersects with the payout reduction schedule. The option opening ({pair}:{direction}) has been stopped.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="342"/>
+        <source>Баланс превысил &lt;span style=&apos;color:green&apos;&gt;Тейк профит&lt;/span&gt;. Открытие опциона ({pair}:{direction}) остановлено.</source>
+        <translation>The balance exceeded &lt;span style=&apos;color:green&apos;&gt;Take profit&lt;/span&gt;. The option opening ({pair}:{direction}) has been stopped.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="348"/>
+        <source>Баланс меньше &lt;span style=&apos;color:red&apos;&gt;Стоп лосс&lt;/span&gt;. Открытие опциона ({pair}:{direction}) остановлено.</source>
+        <translation>The balance is less than &lt;span style=&apos;color:red&apos;&gt;Stop loss&lt;/span&gt;. The option ({pair}:{direction}) has been stopped.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="363"/>
+        <source>Баланс сделки (${investment}) не удовлетворяет условиям для открытия опциона ({pair}:{direction}) на аккаунте «{account}». (мин 0.1 макс 2,000)</source>
+        <translation>The trade balance (${investment}) does not meet the conditions for opening an option ({pair}:{direction}) on the account &quot;{account}&quot;. (min 0.1 max 2,000)</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="373"/>
+        <source>Баланс сделки (₽{investment}) не удовлетворяет условиям для открытия опциона ({pair}:{direction}) на аккаунте «{account}». (мин 20 макс 200,000)</source>
+        <translation>The trade balance (₽{investment}) does not meet the conditions for opening an option ({pair}:{direction}) on the account “{account}”. (min 20 max 200,000)</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="390"/>
+        <source>Открытие опциона...</source>
+        <translation>Opening an option...</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="404"/>
+        <source>Пары</source>
+        <translation>Pair</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="404"/>
+        <source>не существует.</source>
+        <translation>does not exist.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="414"/>
+        <source>Опцион открыт. Актив:</source>
+        <translation>The option is open. Asset:</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="414"/>
+        <source>Направление:</source>
+        <translation>Direction:</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="414"/>
+        <source>Инвестиция:</source>
+        <translation>Investment:</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="414"/>
+        <source>Экспирация:</source>
+        <translation>Expiration:</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="414"/>
+        <source>Режим №</source>
+        <translation>Mode №</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="414"/>
+        <source>Строка</source>
+        <translation>Line number</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="700"/>
+        <source>Серия опционов</source>
+        <translation>Series of options</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="700"/>
+        <source>завершена.</source>
+        <translation>is completed.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="782"/>
+        <source>Ошибка</source>
+        <translation>Error</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="788"/>
+        <source>Не удаётся установить стабильную связь с платформой.</source>
+        <translation>Unable to establish a stable connection with the platform.</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="912"/>
+        <source>Ping timeout — соединение может быть нестабильным.</source>
+        <translation>Ping timeout — the connection may be unstable.</translation>
     </message>
     <message>
         <location filename="news.py" line="98"/>
@@ -79,7 +199,12 @@
         <translation>Cancel</translation>
     </message>
     <message>
-        <location filename="disclaimer_text.py" line="15"/>
+        <location filename="disclaimer_text.py" line="28"/>
+        <source>Отказ от ответственности</source>
+        <translation>Disclaimer of liability</translation>
+    </message>
+    <message>
+        <location filename="disclaimer_text.py" line="52"/>
         <source>&lt;b&gt;Отказ от ответственности&lt;/b&gt;&lt;br&gt;&lt;br&gt;
 Настоящим сообщаем, что предоставляемая услуга является автоматической торговой системой, 
 и результаты её работы не гарантируют прибыль. Торговля на финансовых рынках связана с высоким уровнем риска, 
@@ -101,152 +226,249 @@ and check the trading systems used on the training account.&lt;br&gt;&lt;br&gt;
 Using the bot means agreeing to this disclaimer.</translation>
     </message>
     <message>
-        <location filename="disclaimer_text.py" line="36"/>
-        <source>Отказ от ответственности</source>
-        <translation>Disclaimer of liability</translation>
+        <location filename="UTE Connect.py" line="1125"/>
+        <source>Новостной фильтр</source>
+        <translation>News filter</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="840"/>
+        <location filename="UTE Connect.py" line="881"/>
+        <source>Разрешенные валютные пары</source>
+        <translation>Allowed currency pairs</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="151"/>
+        <source>Расписание</source>
+        <translation type="obsolete">Timetable</translation>
+    </message>
+    <message>
+        <location filename="mm_trading.py" line="156"/>
+        <source>Торговля запрещена настройками для</source>
+        <translation type="obsolete">Trading is prohibited by the settings for</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="98"/>
+        <source>Настройка новостного фильтра</source>
+        <translation type="obsolete">Setting up a news filter</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="106"/>
+        <source>Укажите промежутки времени в минутах для фильтрации новостных событий:</source>
+        <translation type="obsolete">Specify the time intervals in minutes for filtering news events:</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="109"/>
+        <source>Низкая волатильность</source>
+        <translation type="obsolete">Low volatility</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="148"/>
+        <source>Время До:</source>
+        <translation type="obsolete">Time Before:</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="154"/>
+        <source>Время После:</source>
+        <translation type="obsolete">Time After:</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="127"/>
+        <source>Средняя волатильность</source>
+        <translation type="obsolete">Average volatility</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="145"/>
+        <source>Высокая волатильность</source>
+        <translation type="obsolete">Hight volatility</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="163"/>
+        <source>Только основанные на валюте, затронутой новостями</source>
+        <translation type="obsolete">Only based on the currency affected by the news</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="167"/>
+        <source>Обратный новостной фильтр (торговля на новостях)</source>
+        <translation type="obsolete">Reverse news filter (news trading)</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="177"/>
+        <source>Ок</source>
+        <translation type="obsolete">Ok</translation>
+    </message>
+    <message>
+        <location filename="news.py" line="200"/>
+        <source>Отмена</source>
+        <translation type="obsolete">Cancel</translation>
+    </message>
+    <message>
+        <location filename="disclaimer_text.py" line="15"/>
+        <source>&lt;b&gt;Отказ от ответственности&lt;/b&gt;&lt;br&gt;&lt;br&gt;
+Настоящим сообщаем, что предоставляемая услуга является автоматической торговой системой, 
+и результаты её работы не гарантируют прибыль. Торговля на финансовых рынках связана с высоким уровнем риска, 
+и возможны как значительные прибыли, так и убытки.&lt;br&gt;&lt;br&gt;
+Пользователь полностью осознает и принимает на себя все риски, связанные с использованием данного бота. 
+Администрация не несет ответственности за любые финансовые потери или убытки, 
+возникшие в результате использования данной автоматической системы.&lt;br&gt;&lt;br&gt;
+Перед началом использования рекомендуется ознакомиться с условиями и проверить 
+используемые торговые системы на учебном счёте.&lt;br&gt;&lt;br&gt;
+Использование бота означает согласие с данным отказом от ответственности.</source>
+        <translation type="obsolete">&lt;b&gt;Disclaimer of liability&lt;/b&gt;&lt;br&gt;&lt;br&gt;
+We hereby inform you that the service provided is an automatic trading system, 
+and the results of its operation do not guarantee profit. Trading in financial markets involves a high level of risk, 
+and both significant gains and losses are possible.&lt;br&gt;&lt;br&gt;
+The user is fully aware of and assumes all the risks associated with using this bot. 
+The Administration is not responsible for any financial losses or losses resulting from the use of this automatic system.&lt;br&gt;&lt;br&gt;
+Before using it, it is recommended to familiarize yourself with the terms and conditions 
+and check the trading systems used on the training account.&lt;br&gt;&lt;br&gt;
+Using the bot means agreeing to this disclaimer.</translation>
+    </message>
+    <message>
+        <location filename="disclaimer_text.py" line="36"/>
+        <source>Отказ от ответственности</source>
+        <translation type="obsolete">Disclaimer of liability</translation>
+    </message>
+    <message>
+        <location filename="UTE Connect.py" line="846"/>
         <source>Проверка версии</source>
         <translation>Version check</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="914"/>
+        <location filename="UTE Connect.py" line="920"/>
         <source>Расписание торговли (по МСК)</source>
         <translation>Trading schedule (MSK)</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="941"/>
+        <location filename="UTE Connect.py" line="947"/>
         <source>Активен</source>
         <translation>Active</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1112"/>
+        <location filename="UTE Connect.py" line="1118"/>
         <source>Загрузка...</source>
         <translation>Loading...</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1127"/>
+        <location filename="UTE Connect.py" line="1133"/>
         <source>До</source>
         <translation>Before</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1127"/>
+        <location filename="UTE Connect.py" line="1133"/>
         <source>После</source>
         <translation>After</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1127"/>
+        <location filename="UTE Connect.py" line="1133"/>
         <source>Время</source>
         <translation>Time</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1127"/>
+        <location filename="UTE Connect.py" line="1133"/>
         <source>Важность</source>
         <translation>Importance</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1127"/>
+        <location filename="UTE Connect.py" line="1133"/>
         <source>Валюта</source>
         <translation>Currency</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1127"/>
+        <location filename="UTE Connect.py" line="1133"/>
         <source>Событие</source>
         <translation>Event</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1304"/>
+        <location filename="UTE Connect.py" line="1310"/>
         <source>Включить фильтр</source>
         <translation>Enable filter</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1160"/>
+        <location filename="UTE Connect.py" line="1166"/>
         <source>Настройка фильтра</source>
         <translation>Filter settings</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1304"/>
+        <location filename="UTE Connect.py" line="1310"/>
         <source>Выключить фильтр</source>
         <translation>Disable filter</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1569"/>
+        <location filename="UTE Connect.py" line="1573"/>
         <source>Соединение установлено</source>
         <translation>Connection established</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1619"/>
+        <location filename="UTE Connect.py" line="1623"/>
         <source>Внимание</source>
         <translation>Warning</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1619"/>
-        <source>Перед запуском, примените настройки.</source>
-        <translation>Apply settings before starting</translation>
+        <location filename="UTE Connect.py" line="1623"/>
+        <source>Необходимо настроить мани-менеджмент перед подключением к платформе.</source>
+        <translation>You must configure money management before connecting to the platform.</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1629"/>
+        <location filename="UTE Connect.py" line="1633"/>
         <source>Отказано. Нет соединения с платформой.</source>
         <translation>Denied. No connection to the platform.</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1636"/>
+        <location filename="UTE Connect.py" line="1640"/>
         <source>Тестовый период окончен, за дополнительной информацией обратитесь в telegram</source>
         <translation>Trial period has ended, contact us on Telegram for more information</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1668"/>
+        <location filename="UTE Connect.py" line="1672"/>
         <source>Отказано. Вы не имеете доступ!</source>
         <translation>Denied. You don&apos;t have access!</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1671"/>
+        <location filename="UTE Connect.py" line="1675"/>
         <source>Отказано. Заполните поля UserId и Token и url!</source>
         <translation>Denied. Fill in UserId, Token and URL fields!</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1676"/>
+        <location filename="UTE Connect.py" line="1680"/>
         <source>Торговля возобновлена.</source>
         <translation>Trading resumed</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1715"/>
+        <location filename="UTE Connect.py" line="1719"/>
         <source>Торговля приостановлена.</source>
         <translation>Trading suspended</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="2293"/>
+        <location filename="UTE Connect.py" line="2295"/>
         <source>Ошибка</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="2128"/>
+        <location filename="UTE Connect.py" line="2130"/>
         <source>Тип инвестиции должен быть единообразным!</source>
         <translation>Investment type must be consistent!</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="2174"/>
+        <location filename="UTE Connect.py" line="2176"/>
         <source>Несовместимый тип инвестиции в строке</source>
         <translation>Incompatible investment type in row</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="2174"/>
+        <location filename="UTE Connect.py" line="2176"/>
         <source>Во всех строках применяется ли бо конечное число, либо % от баланса на аккаунте.</source>
         <translation>All rows must use either fixed amount or % of account balance</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="2243"/>
+        <location filename="UTE Connect.py" line="2245"/>
         <source>Для выбранного вами режима необходимо настроить хотя бы 2 строки</source>
         <translation>For selected mode you need to configure at least 2 rows</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="2301"/>
+        <location filename="UTE Connect.py" line="2303"/>
         <source>Успех</source>
         <translation>Success</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="2301"/>
+        <location filename="UTE Connect.py" line="2303"/>
         <source>Данные сохранены успешно!</source>
         <translation>Data saved successfully!</translation>
     </message>
@@ -516,132 +738,132 @@ after starting the bot</translation>
         <translation>Version</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1949"/>
+        <location filename="UTE Connect.py" line="1951"/>
         <source>Всего (Total)</source>
         <translation>Total</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1950"/>
+        <location filename="UTE Connect.py" line="1952"/>
         <source>Прибыльных (Profit)</source>
         <translation>Profit</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1951"/>
+        <location filename="UTE Connect.py" line="1953"/>
         <source>Убыточных (Loss)</source>
         <translation>Loss</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1952"/>
+        <location filename="UTE Connect.py" line="1954"/>
         <source>С возвратом (Refund)</source>
         <translation>Refund</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1953"/>
+        <location filename="UTE Connect.py" line="1955"/>
         <source>Процент побед % (Win rate %)</source>
         <translation>Win rate %</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1955"/>
+        <location filename="UTE Connect.py" line="1957"/>
         <source>Сумма прибыльных (Gross profit)</source>
         <translation>Gross profit</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1956"/>
+        <location filename="UTE Connect.py" line="1958"/>
         <source>Сумма убыточных (Gross loss)</source>
         <translation>Gross loss</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1957"/>
+        <location filename="UTE Connect.py" line="1959"/>
         <source>Средняя прибыльная (Average profit trade)</source>
         <translation>Average profit trade</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1958"/>
+        <location filename="UTE Connect.py" line="1960"/>
         <source>Средняя убыточная (Average loss trade)</source>
         <translation>Average loss trade</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1959"/>
+        <location filename="UTE Connect.py" line="1961"/>
         <source>Макс. непрерывных выигрышей (Max consecutive wins)</source>
         <translation>Max consecutive wins</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1960"/>
+        <location filename="UTE Connect.py" line="1962"/>
         <source>Макс. непрерывных проигрышей (Max consecutive losses)</source>
         <translation>x consecutive losses</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1954"/>
+        <location filename="UTE Connect.py" line="1956"/>
         <source>Общий результат (Total net profit)</source>
         <translation>Total net profit</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="919"/>
+        <location filename="UTE Connect.py" line="925"/>
         <source>Пн</source>
         <translation>Mon</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="919"/>
+        <location filename="UTE Connect.py" line="925"/>
         <source>Вт</source>
         <translation>Tue</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="919"/>
+        <location filename="UTE Connect.py" line="925"/>
         <source>Ср</source>
         <translation>Wed</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="919"/>
+        <location filename="UTE Connect.py" line="925"/>
         <source>Чт</source>
         <translation>Thur</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="919"/>
+        <location filename="UTE Connect.py" line="925"/>
         <source>Пт</source>
         <translation>Fri</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="919"/>
+        <location filename="UTE Connect.py" line="925"/>
         <source>Сб</source>
         <translation>Sat</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="920"/>
+        <location filename="UTE Connect.py" line="926"/>
         <source>Вс</source>
         <translation>Sun</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1031"/>
+        <location filename="UTE Connect.py" line="1037"/>
         <source>+ Добавить интервал</source>
         <translation>+ Add interval</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1106"/>
+        <location filename="UTE Connect.py" line="1112"/>
         <source>Внимание!</source>
         <translation>Attention!</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1106"/>
+        <location filename="UTE Connect.py" line="1112"/>
         <source>Фильтр выключен!</source>
         <translation>The filter is disabled!</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1478"/>
+        <location filename="UTE Connect.py" line="1482"/>
         <source>От:</source>
         <translation>From:</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1480"/>
+        <location filename="UTE Connect.py" line="1484"/>
         <source>До:</source>
         <translation>To:</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="693"/>
+        <location filename="UTE Connect.py" line="696"/>
         <source>Требуется перезапуск</source>
         <translation>Restart is required</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="693"/>
+        <location filename="UTE Connect.py" line="696"/>
         <source>Изменение языка вступит в силу после перезапуска приложения.</source>
         <translation>The language change will take effect after you restart the app.</translation>
     </message>
@@ -656,12 +878,12 @@ after starting the bot</translation>
         <translation>Hide Summary</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1874"/>
+        <location filename="UTE Connect.py" line="1878"/>
         <source>Подтверждение удаления</source>
         <translation>Confirmation of deletion</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1875"/>
+        <location filename="UTE Connect.py" line="1879"/>
         <source>Вы уверены, что хотите удалить выбранную статистику?</source>
         <translation>Are you sure you want to delete the selected statistics?</translation>
     </message>
@@ -694,6 +916,11 @@ after starting the bot</translation>
         <location filename="UTE Connect.py" line="502"/>
         <source>Светлая</source>
         <translation>Light</translation>
+    </message>
+    <message>
+        <location filename="UTE Connect.py" line="760"/>
+        <source>Пинг:</source>
+        <translation>Ping:</translation>
     </message>
 </context>
 </TS>

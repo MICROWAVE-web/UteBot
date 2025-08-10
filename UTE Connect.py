@@ -756,7 +756,10 @@ class MainWindow(QMainWindow):
         current_time = datetime.now(pytz.utc)
         current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
         f = current_time.strftime("%d-%m-%Y %H:%M:%S")
-        self.stats_overlay_time.setText(self.tr("Дата и время (МСК):") + f" {f}")
+        if hasattr(self.bot, "ping") and self.bot.ping is not None:
+            self.stats_overlay_time.setText(self.tr("Дата и время (МСК):") + f" {f} " + self.tr("Пинг:") + f" {self.bot.ping} ms")
+        else:
+            self.stats_overlay_time.setText(self.tr("Дата и время (МСК):") + f" {f}")
         self.stats_overlay_time.setStyleSheet(f"font-weight: bold; color: {transparent_text_color(self.theme)};")
 
     @QtCore.pyqtSlot("QWidget*", "QWidget*")
@@ -1328,11 +1331,9 @@ class MainWindow(QMainWindow):
     def isInNewsBlackout(self, pair):
         """Проверяет, попадает ли текущее время в новостной блэкаут"""
         if not hasattr(self, 'news_filter_enabled') or not self.news_filter_enabled:
-            print("Фильтр новостей отключен")
             return False, None
 
         if not hasattr(self, 'news_data') or not self.news_data:
-            print("Нет данных по новостям")
             return False, None
 
         # Текущее время
@@ -1374,7 +1375,6 @@ class MainWindow(QMainWindow):
             else:
                 continue
 
-            print('Новостный фильтр: ', before_min, after_min)
             # Пропуск если интервалы не заданы
             if before_min == 0 and after_min == 0:
                 continue
@@ -1620,7 +1620,7 @@ class MainWindow(QMainWindow):
     def start_client_thread(self):
         try:
             if self.allowToRunBot is False:
-                QMessageBox.warning(self, self.tr("Внимание"), self.tr("Перед запуском, примените настройки."))
+                QMessageBox.warning(self, self.tr("Внимание"), self.tr("Необходимо настроить мани-менеджмент перед подключением к платформе."))
                 return
 
             if self.is_connected is False:
@@ -1892,8 +1892,6 @@ class MainWindow(QMainWindow):
             no_button = msg_box.addButton(no_text, QMessageBox.NoRole)
 
             msg_box.exec_()
-
-            print(msg_box.clickedButton() == yes_button)
 
             if not msg_box.clickedButton() == yes_button:
                 return
@@ -2329,7 +2327,6 @@ class MainWindow(QMainWindow):
         # self.saveData(nide_notification=True)
 
     def update_mm_table(self, text):
-        print(text)
         if not text:
             return
 

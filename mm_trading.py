@@ -3,6 +3,7 @@ import json
 import ssl
 import threading
 import time
+import traceback
 import uuid
 from datetime import timedelta, datetime
 from pprint import pprint
@@ -16,6 +17,8 @@ from programm_files import load_money_management_data
 from utils import (get_expiration, check_availability_time_range,
                    add_pending_option_to_statistic, convert_datetime_format,
                    update_option_in_statistic)
+
+max_errors = 3
 
 
 def tr(text):
@@ -42,6 +45,8 @@ def exeptions_determniant(err):
 
 class OptionSeries:
     def __init__(self, auth_data, window, url, userid, token):
+
+        self.error_messages = {}
 
         self.last_opened_options_data = {}
 
@@ -78,18 +83,11 @@ class OptionSeries:
         if not self.connection_established.wait(timeout=4):
             raise ConnectionError("Connection timeout")
 
-        # Start ping thread
-        self.ping_thread = threading.Thread(target=self.ping_serv)
-        self.ping_thread.daemon = True
-        self.ping_thread.start()
-
         self.block_mt_pairs = set()
 
         self.COUNTERS = None
         self.MT4_SIGNALS = None
         self.clean_counters()
-
-        self.pair_list = self.get_only_pair_list()
 
         self.deal_series = []
 
@@ -99,10 +97,20 @@ class OptionSeries:
 
         self.unix_intervals = None
 
+        self.ping = None
+
+        # Start ping thread
+
+        self.pair_list = self.get_only_pair_list()
+
         self.request_unix_intervals()
 
+        self.ping_thread = threading.Thread(target=self.ping_serv)
+        self.ping_thread.daemon = True
+        self.ping_thread.start()
+
     def request_unix_intervals(self):
-        time_bo_json = self._send_request("one_percent_time", lambda msg: True)
+        time_bo_json = self._send_request("one_percent_time", lambda message: '"7":' in message and '"8":' in message)
         time_bo = json.loads(time_bo_json)
 
         # Преобразуем ключи в целые числа и отсортируем по ключу
@@ -171,8 +179,6 @@ class OptionSeries:
         # Проверка дополнительных параметров
 
         # Проверка разрешенных пар
-        print(self.window.settings)
-
         if not self.window.settings["pairs"].get(pair, True):
             return False, "wrong_pair", None
 
@@ -181,21 +187,8 @@ class OptionSeries:
         current_time = now.time()
         # current_day = now.strftime("%a")  # Формат: Mon, Tue...
         day_index = str(now.weekday())
-        print(f"День недели: {day_index}")
-
-        # Маппинг на русские дни
-        day_mapping = {
-            "Mon": "Пн",
-            "Tue": "Вт",
-            "Wed": "Ср",
-            "Thu": "Чт",
-            "Fri": "Пт",
-            "Sat": "Сб",
-            "Sun": "Вс"
-        }
 
         # current_day_ru = day_mapping.get(current_day)
-        print(self.window.settings["schedule"])
         if day_index not in self.window.settings["schedule"]:
             print('Дня нет ёпты')
             return False, "wrong_time", None
@@ -231,17 +224,17 @@ class OptionSeries:
             # Провера типа ММ и наличия активных открытых опционов
         logging.debug(f"{self.block_mt_pairs=} {self.window.selected_mm_mode=}")
         if self.window.selected_mm_mode == 2 and mt4_pair in self.block_mt_pairs:
-            text = f"{mt4_pair} сделка не открыта, есть открытый опцион {mt4_pair}"
+            text = tr("{pair} сделка не открыта, есть открытый опцион {pair}").format(pair=mt4_pair)
             self.window.log_message(text)
             logging.debug(text)
             return
         elif self.window.selected_mm_mode == 3 and len(self.block_mt_pairs) > 0:
-            text = f"{mt4_pair} сделка не открыта, есть открытый опцион."
+            text = tr("{pair} сделка не открыта, есть открытый опцион.").format(pair=mt4_pair)
             self.window.log_message(text)
             logging.debug(text + f' {self.block_mt_pairs=}')
             return
         elif self.window.selected_mm_mode == 4 and mt4_pair in self.block_mt_pairs:
-            text = f"{mt4_pair} сделка не открыта, есть открытый опцион {mt4_pair}"
+            text = tr("{pair} сделка не открыта, есть открытый опцион {pair}").format(pair=mt4_pair)
             self.window.log_message(text)
             logging.debug(text + f' {self.block_mt_pairs=}')
             return
@@ -318,19 +311,18 @@ class OptionSeries:
 
             chkup, reason = check_availability_time_range(serial_start_points, self.unix_intervals)
             if not chkup and reason == "weekend":
-                text = f"{'Серия опционов' if self.window.selected_mm_mode == 2 else 'Опцион'} пересекается " \
-                       f"с выходных днём. " \
-                       f" Открытие опциона ({mt4_pair}:{mt4_direct}) остановлено."
-                self.window.log_message(text)
-                logging.debug(text)
-
+                text = tr(
+                    "Серия опционов пересекается с выходных днём. Открытие опциона ({pair}:{direction}) остановлено.") if self.window.selected_mm_mode == 2 else tr(
+                    "Опцион пересекается с выходных днём. Открытие опциона ({pair}:{direction}) остановлено.")
+                self.window.log_message(text.format(pair=mt4_pair, direction=mt4_direct))
+                logging.debug(text.format(pair=mt4_pair, direction=mt4_direct))
                 return
             elif not chkup and reason == "low":
-                text = f"{'Серия опционов' if self.window.selected_mm_mode == 2 else 'Опцион'} пересекается " \
-                       f"с расписанием снижения выплат. " \
-                       f"Открытие опциона ({mt4_pair}:{mt4_direct}) остановлено."
-                self.window.log_message(text)
-                logging.debug(text)
+                text = tr(
+                    "Серия опционов пересекается с расписанием снижения выплат. Открытие опциона ({pair}:{direction}) остановлено.") if self.window.selected_mm_mode == 2 else tr(
+                    "Опцион пересекается с расписанием снижения выплат. Открытие опциона ({pair}:{direction}) остановлено.")
+                self.window.log_message(text.format(pair=mt4_pair, direction=mt4_direct))
+                logging.debug(text.format(pair=mt4_pair, direction=mt4_direct))
                 return
 
         # Проверка стоп тейк
@@ -347,17 +339,16 @@ class OptionSeries:
         account_balance = float(account_balance)
 
         if account_balance >= take_profit:
-            text = f"Баланс превысил <span style='color:green'>Тейк профит</span>. " \
-                   f"Открытие опциона ({mt4_pair}:{mt4_direct}) остановлено."
-            self.window.log_message(text)
-            logging.debug(text)
+            msg = tr(
+                "Баланс превысил <span style='color:green'>Тейк профит</span>. Открытие опциона ({pair}:{direction}) остановлено.")
+            self.window.log_message(msg.format(pair=mt4_pair, direction=mt4_direct))
+            logging.debug(msg.format(pair=mt4_pair, direction=mt4_direct))
             return
         elif account_balance <= stop_loss:
-
-            text = f"Баланс меньше <span style='color:red'>Стоп лосс</span>. " \
-                   f"Открытие опциона ({mt4_pair}:{mt4_direct}) остановлено."
-            self.window.log_message(text)
-            logging.debug(text)
+            msg = tr(
+                "Баланс меньше <span style='color:red'>Стоп лосс</span>. Открытие опциона ({pair}:{direction}) остановлено.")
+            self.window.log_message(msg.format(pair=mt4_pair, direction=mt4_direct))
+            logging.debug(msg.format(pair=mt4_pair, direction=mt4_direct))
             return
 
         # Проверка investment
@@ -366,20 +357,28 @@ class OptionSeries:
         else:
             investment = round(float(current_deal["investment"]), 1)
 
-        # Проверка суммы сделки (Счёт доллар - мин 0.1 макс 2,000 \ Счёт рубль - мин 20 макс 200,000)
-        logging.debug(f"{investment=}")
-        if self.account_type == 'real_dollar' and not (0.1 <= investment <= 2000):
-            self.window.log_message(
-                f"Баланс сделки (${investment}) не удовлетворяет условиям для открытия "
-                f"опциона ({mt4_pair}:{mt4_direct}) на аккаунте «{self.account_type_russ}». "
-                f"(мин 0.1 макс 2,000)")
-            return
-        elif self.account_type == 'real_rub' and not (20 <= investment <= 200000):
-            self.window.log_message(
-                f"Баланс сделки (₽{investment}) не удовлетворяет условиям для открытия "
-                f"опциона ({mt4_pair}:{mt4_direct}) на аккаунте «{self.account_type_russ}». "
-                f"(мин 20 макс 200,000)")
-            return
+            # Проверка суммы сделки (Счёт доллар - мин 0.1 макс 2,000 \ Счёт рубль - мин 20 макс 200,000)
+            logging.debug(f"{investment=}")
+            if self.account_type == 'real_dollar' and not (0.1 <= investment <= 2000):
+                msg = tr(
+                    "Баланс сделки (${investment}) не удовлетворяет условиям для открытия опциона ({pair}:{direction}) на аккаунте «{account}». (мин 0.1 макс 2,000)")
+                self.window.log_message(msg.format(
+                    investment=investment,
+                    pair=mt4_pair,
+                    direction=mt4_direct,
+                    account=self.account_type_russ
+                ))
+                return
+            elif self.account_type == 'real_rub' and not (20 <= investment <= 200000):
+                msg = tr(
+                    "Баланс сделки (₽{investment}) не удовлетворяет условиям для открытия опциона ({pair}:{direction}) на аккаунте «{account}». (мин 20 макс 200,000)")
+                self.window.log_message(msg.format(
+                    investment=investment,
+                    pair=mt4_pair,
+                    direction=mt4_direct,
+                    account=self.account_type_russ
+                ))
+                return
 
         # Обработка экспирации
         expiration_data = get_expiration(current_deal)
@@ -388,18 +387,11 @@ class OptionSeries:
 
         self.pair_list = self.get_only_pair_list()
         logging.debug(f"{self.pair_list=}")
-        self.window.log_message(f"Открытие опциона... ({mt4_pair}:{mt4_direct})")
+        self.window.log_message(tr("Открытие опциона...") + f" ({mt4_pair}:{mt4_direct})")
         if mt4_pair in self.pair_list['pair_list']:
 
             percent = self.pair_list['pair_list'].get(mt4_pair)["percent"] if self.pair_list['pair_list'].get(
                 mt4_pair) else 0
-
-            # Создаем поток
-            '''threading.Thread(
-                target=self._open_option_async,
-                args=(mt4_pair, mt4_direct, current_deal, deal_time, percent, w_type_exp),
-                daemon=True
-            ).start()'''
 
             response = self.open_option(pair_name=mt4_pair, up_dn=mt4_direct.lower(),
                                         sum_option=current_deal["investment"],
@@ -409,9 +401,8 @@ class OptionSeries:
             logging.debug(f"OPTION OPENED: {response}")
 
         else:
-            text = f"Пары {mt4_pair} не существует"
-            self.window.log_message(text)
-            logging.warning(text)
+            self.window.log_message(tr("Пары") + f' {mt4_pair} ' + tr("не существует."))
+            logging.warning(f"Пары {mt4_pair} не существует")
             return
 
         if self.window.selected_mm_mode in [2, 3, 4]:
@@ -421,10 +412,15 @@ class OptionSeries:
 
         # Уведомление
         self.window.log_message(
-            f'Опцион открыт. Актив: {mt4_pair}, Направление: {mt4_direct}, '
-            f'Инвестиция: {current_deal["investment"]}, '
-            f'Экспирация: {current_deal["expiration"]}, Режим №{self.window.selected_mm_mode}, Строка {counter + 1}.'
-            if "Deal open" in str(self.serv_answ[(-1)]) else str(self.serv_answ[(-1)]))
+            tr("Опцион открыт. Актив:") + f" {mt4_pair}, " +
+            tr("Направление:") + f" {mt4_direct}, " +
+            tr("Инвестиция:") + f" {current_deal['investment']}, " +
+            tr("Экспирация:") + f" {current_deal['expiration']}, " +
+            tr("Режим №") + f"{self.window.selected_mm_mode}, " +
+            tr("Строка") + f" {counter + 1}."
+            if "Deal open" in str(self.serv_answ[-1]) else str(self.serv_answ[-1])
+        )
+
         logging.info('Option open')
 
         # Увеличение счётчиков
@@ -442,7 +438,8 @@ class OptionSeries:
         # ^^^ Увеличение счетчико происходит в option finished
 
     def _handle_pending_option_async(self, pair_name, up_dn, sum_option, time_h, time_m, time_s, percent_par):
-        logging.debug(f"_handle_pending_option_async({self}, {pair_name}, {up_dn}, {sum_option}, {time_h}, {time_m}, {time_s}, {percent_par})")
+        logging.debug(
+            f"_handle_pending_option_async({self}, {pair_name}, {up_dn}, {sum_option}, {time_h}, {time_m}, {time_s}, {percent_par})")
         sum_option = float(sum_option)
 
         t1 = datetime.now()
@@ -450,47 +447,48 @@ class OptionSeries:
 
         while datetime.now() - t1 < td:
             if not self.last_opened_options_data:
-                logging.debug("Пиздец")
                 time.sleep(0.1)
                 continue
 
-            logging.debug(pair_name, sum_option)
-            logging.debug(self.last_opened_options_data)
-            logging.debug("_______________________")
-            logging.debug("")
-            print()
+            logging.debug(f"{self.last_opened_options_data=}")
 
-            for option_id, option_data in self.last_opened_options_data.items():
-                symbol = option_data.get("symbol")
-                summ = float(option_data.get("sum"))
+            try:
+                for option_id, option_data in self.last_opened_options_data.items():
+                    symbol = option_data.get("symbol")
+                    summ = float(option_data.get("sum"))
 
-                option_id_to_delete = None
-                if symbol == pair_name and summ == sum_option:
-                    pending_data = {
-                        "type_account": self.account_type,
-                        "asset": pair_name,
-                        "open_time": datetime.now(pytz.timezone('Etc/GMT-3')).strftime("%d-%m-%Y %H:%M:%S"),
-                        "expiration": f"{time_h}:{time_m}:{time_s}",
-                        "close_time": "⌛",
-                        "open_price": "⌛",
-                        "trade_type": 'BUY' if up_dn == 'up' else 'SELL',
-                        "close_price": "⌛",
-                        "points": "⌛",
-                        "volume": sum_option,
-                        "refund": 0,
-                        "percentage": f"{percent_par}%" if percent_par else "-",
-                        "result": "⌛",
-                        "loss_refund": False
-                    }
-                    logging.debug(f"add_pending_option_to_statistic({option_id}, {pending_data})")
-                    add_pending_option_to_statistic(option_id, pending_data)
+                    option_id_to_delete = None
+                    if symbol == pair_name and summ == sum_option:
+                        pending_data = {
+                            "type_account": self.account_type,
+                            "asset": pair_name,
+                            "open_time": datetime.now(pytz.timezone('Etc/GMT-3')).strftime("%d-%m-%Y %H:%M:%S"),
+                            "expiration": f"{time_h}:{time_m}:{time_s}",
+                            "close_time": "⌛",
+                            "open_price": "⌛",
+                            "trade_type": 'BUY' if up_dn == 'up' else 'SELL',
+                            "close_price": "⌛",
+                            "points": "⌛",
+                            "volume": sum_option,
+                            "refund": 0,
+                            "percentage": f"{percent_par}%" if percent_par else "-",
+                            "result": "⌛",
+                            "loss_refund": False
+                        }
+                        add_pending_option_to_statistic(option_id, pending_data)
+                        option_id_to_delete = option_id
+                    if option_id_to_delete:
+                        del self.last_opened_options_data[option_id_to_delete]
 
-                if option_id_to_delete:
-                    del self.last_opened_options_data[option_id_to_delete]
-
-            else:
+                else:
+                    time.sleep(0.1)
+                    continue
+            except RuntimeError:
                 time.sleep(0.1)
                 continue
+            except Exception as e:
+                traceback.print_exc()
+
         self.window.btn_apply.click()
 
     def option_finished(self, option_data):
@@ -532,6 +530,10 @@ class OptionSeries:
 
             # Обновляем запись
             update_option_in_statistic(option_id, real_data)
+
+            if option_id in self.last_opened_options_data.keys():
+                del self.last_opened_options_data[option_id]
+
             self.window.btn_apply.click()
 
         option_symbol = str(option_data["info_finish_option"][0]["symbol"])
@@ -577,14 +579,15 @@ class OptionSeries:
 
             if self.COUNTERS["type_2"][option_symbol] >= len(self.deal_series):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена. (Конец таблицы)")
-                self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                self.window.log_message(
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 return
 
             if self.COUNTERS["type_2"][option_symbol] == -1:
                 # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
                 self.window.log_message(
-                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 return
 
             self.process_option(new_serial=False, counter=self.COUNTERS["type_2"][option_symbol], mt4_pair=mt4_pair,
@@ -615,14 +618,15 @@ class OptionSeries:
 
             if jump_to >= len(self.deal_series):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена. (Конец таблицы)")
-                self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                self.window.log_message(
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 return
 
             if jump_to == -1:
                 # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
                 self.window.log_message(
-                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 return
 
             # Меняем счетчик
@@ -630,7 +634,8 @@ class OptionSeries:
 
             if self.COUNTERS["type_3"] >= len(self.deal_series):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
-                self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                self.window.log_message(
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 # Обнуления счетчика режима 3 по этой паре
                 self.COUNTERS["type_3"] = 0
                 return
@@ -639,7 +644,7 @@ class OptionSeries:
                 # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
                 self.window.log_message(
-                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 self.COUNTERS["type_3"] = 0
                 return
 
@@ -668,14 +673,15 @@ class OptionSeries:
 
             if jump_to >= len(self.deal_series):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена. (Конец таблицы)")
-                self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                self.window.log_message(
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 return
 
             if jump_to == -1:
                 # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
                 self.window.log_message(
-                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 return
 
             # Меняем счетчик
@@ -683,7 +689,8 @@ class OptionSeries:
 
             if self.COUNTERS["type_4"][mt4_pair] >= len(self.deal_series):
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (конец таблицы)")
-                self.window.log_message(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                self.window.log_message(
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 self.COUNTERS["type_4"][mt4_pair] = 0
                 return
 
@@ -691,7 +698,7 @@ class OptionSeries:
                 # Если пользователь указал 0 в "перейти к" (тут это -1), то останавливаем серию
                 logging.debug(f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена (Пользователь указал конец)")
                 self.window.log_message(
-                    f"Серия опционов ({mt4_pair}:{mt4_direct}) завершена.")
+                    tr("Серия опционов") + f"({mt4_pair}:{mt4_direct})" + tr("завершена."))
                 self.COUNTERS["type_4"][mt4_pair] = 0
                 return
         else:
@@ -702,12 +709,16 @@ class OptionSeries:
     # ______ UTEBOT: ______
 
     def on_open(self, ws):
+        # self.connection_established.set()
         self.is_connected = True
         pass
 
     def on_message(self, ws, message):
+        print(f"{message=}")
+
         try:
             # Handle initial connection messages
+
             if not self.connection_established.is_set():
                 self.serv_answ.append(message)
                 if len(self.serv_answ) >= 2:
@@ -740,10 +751,6 @@ class OptionSeries:
                     for opt in data.get("api_massive_option", []):
                         self.last_opened_options_data[opt.get("option_id")] = opt
 
-                    """if data.get("api_massive_option", [{}])[0].get("option_id") not in [
-                        d.get("api_massive_option", [{}])[0].get("option_id") for d in self.last_opened_options_data]:
-                        self.last_opened_options_data.append(data)"""
-
             except json.JSONDecodeError:
                 pass
 
@@ -758,10 +765,34 @@ class OptionSeries:
 
     def on_error(self, ws, error):
         self.connection_established.set()
+
         logging.exception("Exception occurred")
+
+        dt_now = datetime.now()
+        error_name = error.__class__.__name__
+        if error_name not in self.error_messages.keys() or \
+                dt_now - self.error_messages[error_name]['last_time'] > timedelta(seconds=5):
+            self.error_messages[error_name] = {
+                'last_time': dt_now,
+                'counts': 0,
+            }
+
+        self.error_messages[error_name]['counts'] += 1
+
+        self.window.log_message(
+            tr("Ошибка") + f"«{error_name}». ({self.error_messages[error_name]['counts']}/{max_errors})")
+
+        pprint(self.error_messages)
+
+        if self.error_messages[error_name]['counts'] >= max_errors:
+            self.window.log_message(tr("Не удаётся установить стабильную связь с платформой."))
+            self.window.stop_client_thread()
+            return
+
+        time.sleep(1)
         self.reconnect()
 
-    def _send_request(self, message, condition):
+    def _send_request(self, message, condition, retries=max_errors, timeout=10):
         req_id = str(uuid.uuid4())
         event = threading.Event()
         response_container = {}  # Container for the response
@@ -769,13 +800,27 @@ class OptionSeries:
 
         try:
             self.ws.send(message)  # Send the message to the WebSocket server
-        except WebSocketConnectionClosedException:
-            self.reconnect()  # If the connection is closed, attempt to reconnect
-            self.ws.send(message)
+        except Exception:
+            # if "socket is already closed." in str(e):
+            #    logging.exception(str(e))
+            #    return "{}"
+            # Пытаемся переподключиться и повторить один раз
+            try:
+                if retries > 0:
+                    time.sleep(1)
+                    self.reconnect()
+                    return self._send_request(message, condition, retries - 1, timeout)
+
+            except Exception:
+                logging.exception("Failed Connect")
+                # Удаляем pending request если он остался
+                self.pending_requests.pop(req_id, None)
+                raise
 
         # Wait for the response or timeout
-        if not event.wait(timeout=4):
-            del self.pending_requests[req_id]
+        if not event.wait(timeout=timeout):
+            # Удаляем безопасно
+            self.pending_requests.pop(req_id, None)
             raise TimeoutError("Request timed out")
 
         # Return the response stored in the container
@@ -801,9 +846,10 @@ class OptionSeries:
         logging.debug("get_only_pair_list")
 
         def pair_list_condition(msg):
-            return "pair_list" in msg
+            return "only_pair_list" in msg
 
         response = self._send_request("only_pair_list", pair_list_condition)
+
         try:
             return json.loads(response)
         except json.JSONDecodeError:
@@ -848,22 +894,41 @@ class OptionSeries:
                 self.serv_answ.append("Unknown response format")
 
     def ping_serv(self):
+        def _is_ping_response(msg):
+            return 'ping_us' in msg
+
         while not self.stop_event.is_set():
             try:
-                self.ws.send("ping_us")
-            except Exception as e:
-                if not self.stop_event.is_set():
-                    self.reconnect()
-                    logging.debug("reconnection...")
-            time.sleep(2)
+                t1 = datetime.now()
+                self._send_request(
+                    "ping_us",  # отправляем как JSON
+                    _is_ping_response
+                )
+                self.ping = round((datetime.now() - t1).total_seconds() * 1000)
+                # можешь добавить лог, если хочешь видеть успешные пинги
+                # logging.debug(f"Ping OK: {result}")
+            except TimeoutError:
+                self.window.log_message(tr("Ping timeout — соединение может быть нестабильным."))
+                logging.warning(tr("Ping timeout — соединение может быть нестабильным."))
+                self.ping = None
+            except Exception:
+                traceback.print_exc()
+            time.sleep(3)  # интервал пинга, чтобы не забивать канал
 
     def close_connection(self):
         logging.debug("Closing...")
         try:
             self.stop_event.set()
-            self.ws.close()
-            self.ping_thread.join()
-            self.ws_thread.join()
+            try:
+                self.ws.close()
+            except Exception:
+                pass
+
+            # Даем потокам небольшой таймаут на завершение
+            if self.ping_thread.is_alive():
+                self.ping_thread.join(timeout=2)
+            if self.ws_thread.is_alive():
+                self.ws_thread.join(timeout=2)
         except Exception:
             logging.exception("Exception closing connection")
             logging.exception("Exception occurred")

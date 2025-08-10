@@ -6,6 +6,31 @@ dark_theme = """
         background-color: rgb(13, 17, 48);
         color: white;
     }
+    
+    /* Всплывающее меню (ПКМ) */
+    QMenu {
+        background-color: rgb(18, 26, 61);
+        color: white;
+        border: 1px solid rgb(50, 50, 50);
+        padding: 4px;
+    }
+
+    QMenu::item {
+        background-color: transparent;
+        padding: 6px 24px;
+        margin: 2px 1px;
+    }
+
+    QMenu::item:selected {
+        background-color: rgb(36, 52, 102);
+        color: white;
+    }
+
+    QMenu::separator {
+        height: 1px;
+        background: rgb(80, 80, 80);
+        margin: 4px 0;
+    }
 
     QWidget {
         /* background-color: rgb(13, 17, 48);*/ 

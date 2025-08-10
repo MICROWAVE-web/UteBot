@@ -228,7 +228,7 @@ def load_additional_settings_data(reset=False):
                         ]
                     },
                 },
-                "theme": "dark"
+                "theme": "light"
             }
             save_additional_settings_data(default_settings)
             return default_settings
