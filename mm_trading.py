@@ -438,7 +438,7 @@ class OptionSeries:
             tr("Экспирация:") + f" {current_deal['expiration']}, " +
             tr("Режим №") + f"{self.window.selected_mm_mode}, " +
             tr("Строка") + f" {counter + 1}."
-            if "Deal open" in str(self.serv_answ[-1]) else str(self.serv_answ[-1])
+            if "option_id" in response.keys() else str(self.serv_answ[-1])
         )
 
         # Увеличение счётчиков
@@ -687,6 +687,7 @@ class OptionSeries:
 
     def on_message(self, ws, message):
         try:
+            print(message)
             # Handle initial connection messages
 
             if not self.connection_established.is_set():
@@ -839,7 +840,7 @@ class OptionSeries:
         logging.debug(message)
 
         def response_condition(msg):
-            return 'Error' in msg or 'i_balance' in msg
+            return 'option_id' in msg and 'u_vip' in msg and ('Error' in msg or 'i_balance' in msg)
 
         response = self._send_request(message, response_condition)
 
