@@ -1,12 +1,13 @@
 # Добавляем поток вывода в файл
 import logging
 import sys
+import threading
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 from pytz import timezone
 
-from programm_files import init_dirs, data_dir, logs_folder
+from programm_files import init_dirs, logs_folder
 
 init_dirs()
 
@@ -44,3 +45,14 @@ def log_unhandled_exception(exc_type, exc_value, exc_traceback):
 
 # Назначаем глобальный перехват
 sys.excepthook = log_unhandled_exception
+
+
+'''def log_thread_exception(args):
+    logging.critical("Unhandled exception in thread",
+                     exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
+
+
+threading.excepthook = log_thread_exception
+import faulthandler
+
+faulthandler.enable(all_threads=True)'''

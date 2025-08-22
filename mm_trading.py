@@ -1,12 +1,9 @@
-import ast
 import json
 import ssl
 import threading
 import time
-import traceback
 import uuid
 from datetime import timedelta, datetime
-from pprint import pprint
 
 import pytz
 from PyQt5.QtCore import QCoreApplication
@@ -46,9 +43,9 @@ def exeptions_determniant(err):
 class OptionSeries:
     def __init__(self, auth_data, window, url, userid, token):
 
-        self.error_messages = {}
+        self.pending_requests_lock = threading.Lock()
 
-        self.last_opened_options_data = {}
+        self.error_messages = {}
 
         self.window = window
         self.account_type = auth_data["selected_type_account"]
@@ -101,13 +98,26 @@ class OptionSeries:
 
         # Start ping thread
 
-        self.pair_list = self.get_only_pair_list()
+        self.pair_list = []
+        # self.pair_list = self.get_only_pair_list()
 
         self.request_unix_intervals()
 
         self.ping_thread = threading.Thread(target=self.ping_serv)
         self.ping_thread.daemon = True
         self.ping_thread.start()
+
+        self.fuck = threading.Thread(target=self.periodic_pair_list)
+        self.fuck.daemon = True
+        self.fuck.start()
+
+    def periodic_pair_list(self):
+        while not self.stop_event.is_set():
+            try:
+                self.pair_list = self.get_only_pair_list()
+            except Exception:
+                logging.exception("Exception in periodic_pair_list")
+            time.sleep(6)  # интервал пинга, чтобы не забивать канал
 
     def request_unix_intervals(self):
         time_bo_json = self._send_request("one_percent_time", lambda message: '"7":' in message and '"8":' in message)
@@ -385,8 +395,8 @@ class OptionSeries:
         deal_time = expiration_data["deal_time"]
         w_type_exp = expiration_data["w_type_exp"]
 
-        self.pair_list = self.get_only_pair_list()
-        logging.debug(f"{self.pair_list=}")
+        # self.pair_list = self.get_only_pair_list()
+        # logging.debug(f"{self.pair_list=}")
         self.window.log_message(tr("Открытие опциона...") + f" ({mt4_pair}:{mt4_direct})")
         if mt4_pair in self.pair_list['pair_list']:
 
@@ -399,6 +409,16 @@ class OptionSeries:
                                         time_m=deal_time[1],
                                         time_s=deal_time[2], percent_par=percent, w_type_exp=w_type_exp)
             logging.debug(f"OPTION OPENED: {response}")
+
+            self.place_pending_option(response['option_id'], {
+                'pair_name': mt4_pair,
+                'time_h': deal_time[0],
+                'time_m': deal_time[1],
+                'time_s': deal_time[2],
+                'up_dn': mt4_direct.lower(),
+                'sum_option': current_deal["investment"],
+                'percent_par': percent,
+            })
 
         else:
             self.window.log_message(tr("Пары") + f' {mt4_pair} ' + tr("не существует."))
@@ -421,8 +441,6 @@ class OptionSeries:
             if "Deal open" in str(self.serv_answ[-1]) else str(self.serv_answ[-1])
         )
 
-        logging.info('Option open')
-
         # Увеличение счётчиков
         if self.window.selected_mm_mode == 1:
             self.COUNTERS["type_1"][mt4_pair] += 1
@@ -436,60 +454,6 @@ class OptionSeries:
             self.COUNTERS["type_4"][mt4_pair] += 1"""
 
         # ^^^ Увеличение счетчико происходит в option finished
-
-    def _handle_pending_option_async(self, pair_name, up_dn, sum_option, time_h, time_m, time_s, percent_par):
-        logging.debug(
-            f"_handle_pending_option_async({self}, {pair_name}, {up_dn}, {sum_option}, {time_h}, {time_m}, {time_s}, {percent_par})")
-        sum_option = float(sum_option)
-
-        t1 = datetime.now()
-        td = timedelta(seconds=3)
-
-        while datetime.now() - t1 < td:
-            if not self.last_opened_options_data:
-                time.sleep(0.1)
-                continue
-
-            logging.debug(f"{self.last_opened_options_data=}")
-
-            try:
-                for option_id, option_data in self.last_opened_options_data.items():
-                    symbol = option_data.get("symbol")
-                    summ = float(option_data.get("sum"))
-
-                    option_id_to_delete = None
-                    if symbol == pair_name and summ == sum_option:
-                        pending_data = {
-                            "type_account": self.account_type,
-                            "asset": pair_name,
-                            "open_time": datetime.now(pytz.timezone('Etc/GMT-3')).strftime("%d-%m-%Y %H:%M:%S"),
-                            "expiration": f"{time_h}:{time_m}:{time_s}",
-                            "close_time": "⌛",
-                            "open_price": "⌛",
-                            "trade_type": 'BUY' if up_dn == 'up' else 'SELL',
-                            "close_price": "⌛",
-                            "points": "⌛",
-                            "volume": sum_option,
-                            "refund": 0,
-                            "percentage": f"{percent_par}%" if percent_par else "-",
-                            "result": "⌛",
-                            "loss_refund": False
-                        }
-                        add_pending_option_to_statistic(option_id, pending_data)
-                        option_id_to_delete = option_id
-                    if option_id_to_delete:
-                        del self.last_opened_options_data[option_id_to_delete]
-
-                else:
-                    time.sleep(0.1)
-                    continue
-            except RuntimeError:
-                time.sleep(0.1)
-                continue
-            except Exception as e:
-                traceback.print_exc()
-
-        self.window.btn_apply.click()
 
     def option_finished(self, option_data):
 
@@ -531,10 +495,7 @@ class OptionSeries:
             # Обновляем запись
             update_option_in_statistic(option_id, real_data)
 
-            if option_id in self.last_opened_options_data.keys():
-                del self.last_opened_options_data[option_id]
-
-            self.window.btn_apply.click()
+            # self.window.btn_apply.click()
 
         option_symbol = str(option_data["info_finish_option"][0]["symbol"])
 
@@ -561,9 +522,6 @@ class OptionSeries:
                 self.block_mt_pairs.remove(option_symbol)
 
             mt4_pair, mt4_direct = self.MT4_SIGNALS["type_2"][option_symbol]
-
-            # Обновляем статистику
-            self.window.btn_apply.click()
 
             # Обновляем счетчик
             if option_result_word in ['loss', "-1", "-1pips"]:
@@ -603,9 +561,6 @@ class OptionSeries:
                 self.block_mt_pairs.remove(option_symbol)
 
             mt4_pair, mt4_direct = self.MT4_SIGNALS["type_3"][option_symbol]
-
-            # Обновляем статистику
-            self.window.btn_apply.click()
 
             # Обновляем счетчик
             if option_result_word in ['loss', "-1", "-1pips"]:
@@ -659,9 +614,6 @@ class OptionSeries:
 
             mt4_pair, mt4_direct = self.MT4_SIGNALS["type_4"][option_symbol]
 
-            # Обновляем статистику
-            self.window.btn_apply.click()
-
             # Обновляем счетчик
             if option_result_word in ['loss', "-1", "-1pips"]:
                 jump_to = self.deal_series[self.COUNTERS["type_4"][mt4_pair]]["on_loss"] - 1
@@ -706,6 +658,26 @@ class OptionSeries:
             logging.debug(f"{self.MT4_SIGNALS=}")
             logging.debug(f"{self.block_mt_pairs=}")
 
+    def place_pending_option(self, option_id, pending):
+        # нашли заявку — добавляем в статистику
+        pending_data = {
+            "type_account": self.account_type,
+            "asset": pending["pair_name"],
+            "open_time": datetime.now(pytz.timezone('Etc/GMT-3')).strftime("%d-%m-%Y %H:%M:%S"),
+            "expiration": f"{pending['time_h']}:{pending['time_m']}:{pending['time_s']}",
+            "close_time": "⌛",
+            "open_price": "⌛",
+            "trade_type": 'BUY' if pending['up_dn'] == 'up' else 'SELL',
+            "close_price": "⌛",
+            "points": "⌛",
+            "volume": pending["sum_option"],
+            "refund": 0,
+            "percentage": f"{pending['percent_par']}%" if pending['percent_par'] else "-",
+            "result": "⌛",
+            "loss_refund": False
+        }
+        add_pending_option_to_statistic(option_id, pending_data)
+
     # ______ UTEBOT: ______
 
     def on_open(self, ws):
@@ -714,8 +686,6 @@ class OptionSeries:
         pass
 
     def on_message(self, ws, message):
-        print(f"{message=}")
-
         try:
             # Handle initial connection messages
 
@@ -725,34 +695,30 @@ class OptionSeries:
                     self.connection_established.set()
 
             # Check pending requests
-            for req_id, (event, condition, response_container) in list(self.pending_requests.items()):
-                if condition(message):
-                    response_container['response'] = message  # Store the response
-                    event.set()  # Set the event to indicate response is received
-                    del self.pending_requests[req_id]
-                    break
+            with self.pending_requests_lock:
+                for req_id, (event, condition, response_container) in list(self.pending_requests.items()):
+                    if condition(message):
+                        response_container['response'] = message
+                        event.set()
+                        del self.pending_requests[req_id]
+                        break
 
             # Process message
-            try:
-                data = json.loads(message)
-                if "i_balance" in data:
-                    logging.debug("i_balance")
-                    logging.debug(data)
-                    self.ute_data = data
+            data = json.loads(message)
 
-                if "finish_option" in data:
-                    logging.debug("finish_option")
-                    logging.debug(data)
-                    self.option_finished(data)
+            if "i_balance" in data:
+                logging.debug(data)
+                self.ute_data = data
 
-                if "info_open_option" in data:
-                    logging.debug(data)
+            if "finish_option" in data:
+                logging.debug(data)
+                self.option_finished(data)
 
-                    for opt in data.get("api_massive_option", []):
-                        self.last_opened_options_data[opt.get("option_id")] = opt
+            if "info_open_option" in data:
+                logging.debug(data)
 
-            except json.JSONDecodeError:
-                pass
+        except json.JSONDecodeError:
+            pass
 
         except Exception:
             logging.exception("Exception occurred")
@@ -782,8 +748,6 @@ class OptionSeries:
         self.window.log_message(
             tr("Ошибка") + f"«{error_name}». ({self.error_messages[error_name]['counts']}/{max_errors})")
 
-        pprint(self.error_messages)
-
         if self.error_messages[error_name]['counts'] >= max_errors:
             self.window.log_message(tr("Не удаётся установить стабильную связь с платформой."))
             self.window.stop_client_thread()
@@ -792,15 +756,18 @@ class OptionSeries:
         time.sleep(1)
         self.reconnect()
 
-    def _send_request(self, message, condition, retries=max_errors, timeout=10):
+    def _send_request(self, message, condition, retries=max_errors, timeout=20):
         req_id = str(uuid.uuid4())
         event = threading.Event()
         response_container = {}  # Container for the response
-        self.pending_requests[req_id] = (event, condition, response_container)
+
+        with self.pending_requests_lock:
+            self.pending_requests[req_id] = (event, condition, response_container)
 
         try:
             self.ws.send(message)  # Send the message to the WebSocket server
         except Exception:
+            logging.exception("Exception occurred. RETRYING...")
             # if "socket is already closed." in str(e):
             #    logging.exception(str(e))
             #    return "{}"
@@ -814,7 +781,8 @@ class OptionSeries:
             except Exception:
                 logging.exception("Failed Connect")
                 # Удаляем pending request если он остался
-                self.pending_requests.pop(req_id, None)
+                with self.pending_requests_lock:
+                    self.pending_requests.pop(req_id, None)
                 raise
 
         # Wait for the response or timeout
@@ -839,7 +807,7 @@ class OptionSeries:
                                           kwargs={'sslopt': {"cert_reqs": ssl.CERT_NONE}})
         self.ws_thread.start()
         self.connection_established.clear()
-        if not self.connection_established.wait(timeout=10):
+        if not self.connection_established.wait(timeout=5):
             raise ConnectionError("Reconnection failed")
 
     def get_only_pair_list(self):
@@ -849,14 +817,16 @@ class OptionSeries:
             return "only_pair_list" in msg
 
         response = self._send_request("only_pair_list", pair_list_condition)
-
         try:
-            return json.loads(response)
+            res = json.loads(response)
+            self.pair_list = res
+            return res
         except json.JSONDecodeError:
             logging.error(response)
             logging.exception("Exception occurred")
             raise Exception("Ошибка декодирования only_pair_list")
         except WebSocketConnectionClosedException:
+            print("WebSocketConnectionClosedException")
             self.reconnect()
 
     def open_option(self, pair_name, up_dn, sum_option, type_account,
@@ -873,25 +843,7 @@ class OptionSeries:
 
         response = self._send_request(message, response_condition)
 
-        if 'Error' in response:
-            error_key = list(ast.literal_eval(response).keys())[0]
-            error_msg = exeptions_determniant(error_key)
-            self.serv_answ.append(error_msg)
-            logging.debug(error_msg)
-        else:
-            try:
-                self.serv_answ.append("Deal open")
-
-                threading.Thread(
-                    target=self._handle_pending_option_async,
-                    args=(pair_name, up_dn, sum_option, time_h, time_m, time_s, percent_par),
-                    daemon=True
-                ).start()
-
-                logging.debug("Deal opened successfully")
-                return json.loads(response)
-            except json.JSONDecodeError:
-                self.serv_answ.append("Unknown response format")
+        return json.loads(response)
 
     def ping_serv(self):
         def _is_ping_response(msg):
@@ -912,7 +864,7 @@ class OptionSeries:
                 logging.warning(tr("Ping timeout — соединение может быть нестабильным."))
                 self.ping = None
             except Exception:
-                traceback.print_exc()
+                logging.exception("Error")
             time.sleep(3)  # интервал пинга, чтобы не забивать канал
 
     def close_connection(self):
@@ -931,7 +883,6 @@ class OptionSeries:
                 self.ws_thread.join(timeout=2)
         except Exception:
             logging.exception("Exception closing connection")
-            logging.exception("Exception occurred")
 
     def get_balance(self, account_type):
         if account_type == "demo":

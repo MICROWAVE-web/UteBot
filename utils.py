@@ -128,7 +128,7 @@ def recalculate_summary(data):
             # Если обычный возврат ли возврат на -1 пункт - 50%
             if trade["open_price"] == trade["close_price"] or trade.get('loss_refund') is True:
                 # Учитываем возвратв 50% как убыточную сделку
-                if result < trade['volume']:
+                if result < float(trade['volume']):
                     gross_loss += result
                     loss += 1
                 else:
@@ -303,4 +303,4 @@ if __name__ == "__main__":
         timedelta(hours=-8),
         timedelta(hours=-8, minutes=10),
     ]
-    check_availability_time_range(ll)
+     #check_availability_time_range(ll)

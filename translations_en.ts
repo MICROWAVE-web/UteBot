@@ -226,108 +226,6 @@ and check the trading systems used on the training account.&lt;br&gt;&lt;br&gt;
 Using the bot means agreeing to this disclaimer.</translation>
     </message>
     <message>
-        <location filename="UTE Connect.py" line="1125"/>
-        <source>Новостной фильтр</source>
-        <translation>News filter</translation>
-    </message>
-    <message>
-        <location filename="UTE Connect.py" line="881"/>
-        <source>Разрешенные валютные пары</source>
-        <translation>Allowed currency pairs</translation>
-    </message>
-    <message>
-        <location filename="mm_trading.py" line="151"/>
-        <source>Расписание</source>
-        <translation type="obsolete">Timetable</translation>
-    </message>
-    <message>
-        <location filename="mm_trading.py" line="156"/>
-        <source>Торговля запрещена настройками для</source>
-        <translation type="obsolete">Trading is prohibited by the settings for</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="98"/>
-        <source>Настройка новостного фильтра</source>
-        <translation type="obsolete">Setting up a news filter</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="106"/>
-        <source>Укажите промежутки времени в минутах для фильтрации новостных событий:</source>
-        <translation type="obsolete">Specify the time intervals in minutes for filtering news events:</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="109"/>
-        <source>Низкая волатильность</source>
-        <translation type="obsolete">Low volatility</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="148"/>
-        <source>Время До:</source>
-        <translation type="obsolete">Time Before:</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="154"/>
-        <source>Время После:</source>
-        <translation type="obsolete">Time After:</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="127"/>
-        <source>Средняя волатильность</source>
-        <translation type="obsolete">Average volatility</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="145"/>
-        <source>Высокая волатильность</source>
-        <translation type="obsolete">Hight volatility</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="163"/>
-        <source>Только основанные на валюте, затронутой новостями</source>
-        <translation type="obsolete">Only based on the currency affected by the news</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="167"/>
-        <source>Обратный новостной фильтр (торговля на новостях)</source>
-        <translation type="obsolete">Reverse news filter (news trading)</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="177"/>
-        <source>Ок</source>
-        <translation type="obsolete">Ok</translation>
-    </message>
-    <message>
-        <location filename="news.py" line="200"/>
-        <source>Отмена</source>
-        <translation type="obsolete">Cancel</translation>
-    </message>
-    <message>
-        <location filename="disclaimer_text.py" line="15"/>
-        <source>&lt;b&gt;Отказ от ответственности&lt;/b&gt;&lt;br&gt;&lt;br&gt;
-Настоящим сообщаем, что предоставляемая услуга является автоматической торговой системой, 
-и результаты её работы не гарантируют прибыль. Торговля на финансовых рынках связана с высоким уровнем риска, 
-и возможны как значительные прибыли, так и убытки.&lt;br&gt;&lt;br&gt;
-Пользователь полностью осознает и принимает на себя все риски, связанные с использованием данного бота. 
-Администрация не несет ответственности за любые финансовые потери или убытки, 
-возникшие в результате использования данной автоматической системы.&lt;br&gt;&lt;br&gt;
-Перед началом использования рекомендуется ознакомиться с условиями и проверить 
-используемые торговые системы на учебном счёте.&lt;br&gt;&lt;br&gt;
-Использование бота означает согласие с данным отказом от ответственности.</source>
-        <translation type="obsolete">&lt;b&gt;Disclaimer of liability&lt;/b&gt;&lt;br&gt;&lt;br&gt;
-We hereby inform you that the service provided is an automatic trading system, 
-and the results of its operation do not guarantee profit. Trading in financial markets involves a high level of risk, 
-and both significant gains and losses are possible.&lt;br&gt;&lt;br&gt;
-The user is fully aware of and assumes all the risks associated with using this bot. 
-The Administration is not responsible for any financial losses or losses resulting from the use of this automatic system.&lt;br&gt;&lt;br&gt;
-Before using it, it is recommended to familiarize yourself with the terms and conditions 
-and check the trading systems used on the training account.&lt;br&gt;&lt;br&gt;
-Using the bot means agreeing to this disclaimer.</translation>
-    </message>
-    <message>
-        <location filename="disclaimer_text.py" line="36"/>
-        <source>Отказ от ответственности</source>
-        <translation type="obsolete">Disclaimer of liability</translation>
-    </message>
-    <message>
         <location filename="UTE Connect.py" line="846"/>
         <source>Проверка версии</source>
         <translation>Version check</translation>
@@ -436,11 +334,6 @@ Using the bot means agreeing to this disclaimer.</translation>
         <location filename="UTE Connect.py" line="1719"/>
         <source>Торговля приостановлена.</source>
         <translation>Trading suspended</translation>
-    </message>
-    <message>
-        <location filename="UTE Connect.py" line="2295"/>
-        <source>Ошибка</source>
-        <translation>Error</translation>
     </message>
     <message>
         <location filename="UTE Connect.py" line="2130"/>

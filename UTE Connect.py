@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QHeader
     QLineEdit, QLabel, QGroupBox, QHBoxLayout, QCheckBox, QVBoxLayout, QWidget, QScrollArea, QTimeEdit, QFrame, \
     QGridLayout, QPushButton, QDialog, QSpinBox, QTableWidget, QGraphicsOpacityEffect, QSizePolicy, QAbstractItemView
 from flask import Flask, request, abort
-from tqdm import tqdm
 
 from disclaimer_text import DisclaimerWindow
 from loggingfile import logging
@@ -370,8 +369,6 @@ class MainWindow(QMainWindow):
         self.language_combo.currentIndexChanged.connect(self.on_language_changed)
         self.set_combo_by_data(self.language_combo, lang)
 
-
-
         self.type_account.clear()
         for key, label in self.ACCOUNT_LABELS.items():
             self.type_account.addItem(label, userData=key)
@@ -419,47 +416,42 @@ class MainWindow(QMainWindow):
         self.created_additional_settings = False
         if load_additional_settings_data():
             self.createAdditionalSettings({'only_pair_list': 'ok',
-                                           'pair_list': {'GBPUSD OTC': {'percent': 90, 'float': 5},
-                                                         'AUDUSD OTC': {'percent': 90, 'float': 5},
-                                                         'USDJPY OTC': {'percent': 90, 'float': 3},
-                                                         'EURUSD OTC': {'percent': 90, 'float': 5},
-                                                         'BTCUSDT': {'percent': 82, 'float': 2},
-                                                         'GBPNZD': {'percent': 81, 'float': 5},
-                                                         'AUDCAD': {'percent': 81, 'float': 5},
-                                                         'GBPJPY': {'percent': 81, 'float': 3},
-                                                         'NZDCAD': {'percent': 81, 'float': 5},
-                                                         'NZDCHF': {'percent': 81, 'float': 5},
-                                                         'NZDJPY': {'percent': 81, 'float': 3},
-                                                         'NZDUSD': {'percent': 81, 'float': 5},
-                                                         'USDCAD': {'percent': 81, 'float': 5},
-                                                         'USDCHF': {'percent': 81, 'float': 5},
-                                                         'USDJPY': {'percent': 81, 'float': 3},
-                                                         'EURAUD': {'percent': 81, 'float': 5},
-                                                         'GBPCAD': {'percent': 81, 'float': 5},
-                                                         'AUDCHF': {'percent': 81, 'float': 5},
-                                                         'AUDJPY': {'percent': 81, 'float': 3},
-                                                         'AUDUSD': {'percent': 81, 'float': 5},
-                                                         'CADCHF': {'percent': 81, 'float': 5},
-                                                         'CADJPY': {'percent': 81, 'float': 3},
-                                                         'CHFJPY': {'percent': 81, 'float': 3},
-                                                         'EURCAD': {'percent': 81, 'float': 5},
-                                                         'EURCHF': {'percent': 81, 'float': 5},
-                                                         'EURGBP': {'percent': 81, 'float': 5},
-                                                         'EURJPY': {'percent': 81, 'float': 3},
-                                                         'EURNZD': {'percent': 81, 'float': 5},
-                                                         'EURUSD': {'percent': 81, 'float': 5},
-                                                         'GBPAUD': {'percent': 81, 'float': 5},
-                                                         'GBPCHF': {'percent': 81, 'float': 5},
-                                                         'GBPUSD': {'percent': 50, 'float': 5},
-                                                         'EURJPY BO': {'percent': 20, 'float': 3},
-                                                         'GBPUSD BO': {'percent': 20, 'float': 5},
-                                                         'GBPCAD BO': {'percent': 20, 'float': 5},
-                                                         'GBPCHF BO': {'percent': 20, 'float': 5},
-                                                         'NZDCHF BO': {'percent': 20, 'float': 5},
-                                                         'NZDJPY BO': {'percent': 20, 'float': 3},
-                                                         'NZDUSD BO': {'percent': 20, 'float': 5},
-                                                         'USDCHF BO': {'percent': 20, 'float': 5}}})
+                                           'pair_list': {
+                                               'EURUSD': {'percent': 81, 'float': 5},
+                                               'EURAUD': {'percent': 81, 'float': 5},
+                                               'EURCAD': {'percent': 81, 'float': 5},
+                                               'EURCHF': {'percent': 81, 'float': 5},
+                                               'EURGBP': {'percent': 81, 'float': 5},
+                                               'EURJPY': {'percent': 81, 'float': 3},
+                                               'EURNZD': {'percent': 81, 'float': 5},
 
+                                               'GBPUSD': {'percent': 50, 'float': 5},
+                                               'GBPAUD': {'percent': 81, 'float': 5},
+                                               'GBPCAD': {'percent': 81, 'float': 5},
+                                               'GBPCHF': {'percent': 81, 'float': 5},
+                                               'GBPJPY': {'percent': 81, 'float': 3},
+                                               'GBPNZD': {'percent': 81, 'float': 5},
+
+                                               'AUDUSD': {'percent': 81, 'float': 5},
+                                               'AUDCAD': {'percent': 81, 'float': 5},
+                                               'AUDCHF': {'percent': 81, 'float': 5},
+                                               'AUDJPY': {'percent': 81, 'float': 3},
+
+                                               'USDCAD': {'percent': 81, 'float': 5},
+                                               'USDCHF': {'percent': 81, 'float': 5},
+                                               'USDJPY': {'percent': 81, 'float': 3},
+
+                                               'NZDCAD': {'percent': 81, 'float': 5},
+                                               'NZDCHF': {'percent': 81, 'float': 5},
+                                               'NZDJPY': {'percent': 81, 'float': 3},
+                                               'NZDUSD': {'percent': 81, 'float': 5},
+
+                                               'CADCHF': {'percent': 81, 'float': 5},
+                                               'CADJPY': {'percent': 81, 'float': 3},
+                                               'CHFJPY': {'percent': 81, 'float': 3},
+
+                                               'BTCUSDT': {'percent': 82, 'float': 2}
+                                           }})
 
         # Инициализация новостного обновления
 
@@ -479,6 +471,10 @@ class MainWindow(QMainWindow):
         self.text_update_timer = QtCore.QTimer(self)
         self.text_update_timer.timeout.connect(self.updateTransParentTime)
         self.text_update_timer.start(1000)
+
+        self.text_update_timer = QtCore.QTimer(self)
+        self.text_update_timer.timeout.connect(self.update_all_statistic)
+        self.text_update_timer.start(2000)
 
         self.fix_table()
 
@@ -501,7 +497,6 @@ class MainWindow(QMainWindow):
         self.theme_combo.addItem(self.tr("Тёмная"), userData="dark")
         self.theme_combo.addItem(self.tr("Светлая"), userData="light")
         self.theme_combo.currentIndexChanged.connect(self.switch_theme)
-
 
         index = self.theme_combo.findData(self.theme)
         if index != -1:
@@ -554,13 +549,13 @@ class MainWindow(QMainWindow):
 
         self.overlay_text.setStyleSheet(f"color: {transparent_text_color(self.theme)};")
 
-
         if self.theme == 'light':
             style_str = light_theme
         else:
             style_str = dark_theme
 
-        self.main_scroll_container.setStyleSheet(f"QWidget {{ border: none; background-color: {background_color(self.theme)}; }} " + style_str)
+        self.main_scroll_container.setStyleSheet(
+            f"QWidget {{ border: none; background-color: {background_color(self.theme)}; }} " + style_str)
 
     def fix_table_style(self, theme):
         """Дополнительные настройки стилей для таблиц"""
@@ -627,7 +622,6 @@ class MainWindow(QMainWindow):
             self.add_scroll_area.setStyleSheet(scrollbarstyle(theme=self.theme))
 
         self.textBrowser.setOpenExternalLinks(True)
-
 
     def toggle_summary(self):
         """Переключает отображение сводки статистики"""
@@ -757,7 +751,8 @@ class MainWindow(QMainWindow):
         current_time = current_time.astimezone(pytz.timezone('Etc/GMT-3'))
         f = current_time.strftime("%d-%m-%Y %H:%M:%S")
         if hasattr(self.bot, "ping") and self.bot.ping is not None:
-            self.stats_overlay_time.setText(self.tr("Дата и время (МСК):") + f" {f} " + self.tr("Пинг:") + f" {self.bot.ping} ms")
+            self.stats_overlay_time.setText(
+                self.tr("Дата и время (МСК):") + f" {f} " + self.tr("Пинг:") + f" {self.bot.ping} ms")
         else:
             self.stats_overlay_time.setText(self.tr("Дата и время (МСК):") + f" {f}")
         self.stats_overlay_time.setStyleSheet(f"font-weight: bold; color: {transparent_text_color(self.theme)};")
@@ -816,19 +811,16 @@ class MainWindow(QMainWindow):
         self.manage_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.manage_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
-
         self.trades_table.setFrameStyle(QFrame.NoFrame)
         self.trades_table.setStyleSheet(scrollbarstyle(margins=True, theme=self.theme))
         self.trades_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.trades_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.textBrowser.setFrameStyle(QFrame.NoFrame)
 
-
         if hasattr(self, 'news_table'):
             self.news_table.setFrameStyle(QFrame.NoFrame)
             self.news_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             self.news_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-
 
     # Проверка версии
     def check_version(self):
@@ -887,28 +879,29 @@ class MainWindow(QMainWindow):
         grid_layout = QGridLayout(grid_widget)
 
         self.pair_checkboxes = {}
-        row, col = 0, 0
         max_cols = 3
+        pair_list = pairs["pair_list"]
+        total = len(pair_list)
+        rows = (total + max_cols - 1) // max_cols  # количество строк
 
-        for pair in pairs["pair_list"]:
+        for index, pair in enumerate(pair_list):
+            # вычисляем позицию (row, col), но заполняем по колонкам
+            col = index // rows
+            row = index % rows
+
             cb = QCheckBox(pair)
             # Восстанавливаем состояние из сохраненных настроек
             if self.settings and "pairs" in self.settings and pair in self.settings["pairs"]:
                 cb.setChecked(self.settings["pairs"][pair])
             else:
                 if pair.endswith("BO") or pair.endswith("OTC"):
-                    cb.setChecked(False)  # По умолчанию включено для других
+                    cb.setChecked(False)
                 else:
-                    cb.setChecked(True)  # По умолчанию включено для обычных
+                    cb.setChecked(True)
 
             cb.stateChanged.connect(self.onAdditionalSettingsChanged)
             grid_layout.addWidget(cb, row, col)
             self.pair_checkboxes[pair] = cb
-
-            col += 1
-            if col >= max_cols:
-                col = 0
-                row += 1
 
         # Добавляем сетку в пары
         pairs_layout.addWidget(grid_widget)
@@ -1082,7 +1075,6 @@ class MainWindow(QMainWindow):
 
         self.fix_table()
 
-
         self.updateNewsTable()
         if self.news_data is None:
             self.place_news_loading_text()
@@ -1174,7 +1166,6 @@ class MainWindow(QMainWindow):
         parent_block.addWidget(news_group)
 
         self.toggleNewsFilter()
-
 
     def toggleStyleSheetNewsFilterButton(self, enabled):
         if enabled:
@@ -1349,7 +1340,6 @@ class MainWindow(QMainWindow):
 
             # Пропускаем новости без настроек
             if self.news_settings.get(str(news['id'])):
-
 
                 settings = self.news_settings.get(news_id, {})
                 before_min = settings.get('before', 0)
@@ -1620,7 +1610,8 @@ class MainWindow(QMainWindow):
     def start_client_thread(self):
         try:
             if self.allowToRunBot is False:
-                QMessageBox.warning(self, self.tr("Внимание"), self.tr("Необходимо настроить мани-менеджмент перед подключением к платформе."))
+                QMessageBox.warning(self, self.tr("Внимание"),
+                                    self.tr("Необходимо настроить мани-менеджмент перед подключением к платформе."))
                 return
 
             if self.is_connected is False:
@@ -1802,7 +1793,13 @@ class MainWindow(QMainWindow):
 
             self.trades_table.setColumnWidth(0, 40)
 
-            for row, trade in enumerate(trades[::-1]):
+            row = 0
+            for trade in trades[::-1]:
+
+                # Заглушка, не отображаем с часами
+                #if trade["open_price"] == "⌛":
+                #    continue
+
                 for col, key in enumerate(trade_label):
                     value = str(trade.get(key, "N/A"))
 
@@ -1859,6 +1856,7 @@ class MainWindow(QMainWindow):
 
                     self.trades_table.setCellWidget(row, col, item)
 
+                row += 1
             # self.trades_table.resizeColumnsToContents()
 
             data["trades"] = trades
@@ -1885,7 +1883,6 @@ class MainWindow(QMainWindow):
             else:
                 yes_text = "Yes"
                 no_text = "No"
-
 
             # Добавляем кастомные кнопки
             yes_button = msg_box.addButton(yes_text, QMessageBox.YesRole)
@@ -1961,6 +1958,8 @@ class MainWindow(QMainWindow):
             self.tr('Макс. непрерывных выигрышей (Max consecutive wins)'),
             self.tr('Макс. непрерывных проигрышей (Max consecutive losses)')]
 
+        # self.summary_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         for i, key in enumerate(summary_labels):
             value = str(summary.get(key, "N/A"))
             self.summary_table.setItem(i, 0, QTableWidgetItem(summary_text_labels[i]))  # Вставляем заголовок в таблицу
@@ -1970,12 +1969,17 @@ class MainWindow(QMainWindow):
             item = self.summary_table.item(i, 1)
             if item:
                 # item.setFlags(QtCore.Qt.ItemIsEnabled)
+                pass
                 item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        header = self.summary_table.horizontalHeader()
+        self.summary_table.setFrameStyle(QFrame.NoFrame)
+        self.summary_table.setContentsMargins(0, 0, 0, 0)
+        self.summary_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.summary_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.summary_table.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.summary_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        # Растянуть строки на всю высоту таблицы (необязательно)
 
     # Мани-менеджмент
 
@@ -1993,7 +1997,6 @@ class MainWindow(QMainWindow):
         # Stretch всем колонкам, но с учётом минимального размера
 
         header.setSectionResizeMode(QHeaderView.Stretch)
-
 
         # self.manage_table.setColumnWidth(0, 40)  # Можно убрать, если растягиваете все
 
@@ -2024,7 +2027,6 @@ class MainWindow(QMainWindow):
                mm_type_val=MM_MODES[1],
                profit_val="100000", stop_val="100", on_win=1,
                on_loss=1, result_val='WIN', skip_check=False, add_copy=False, header=None):
-
 
         def place_default():
             for col in range(1, self.manage_table.columnCount()):
@@ -2062,7 +2064,7 @@ class MainWindow(QMainWindow):
                 item.setStyleSheet(allowed_cell(self.theme))
                 item.setMinimumWidth(120)
                 # if header:
-                    # header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+                # header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
                 self.manage_table.setCellWidget(rowCount, col, item)
 
         def place_previous_copy():
@@ -2302,10 +2304,14 @@ class MainWindow(QMainWindow):
             if not nide_notification:
                 QMessageBox.information(self, self.tr("Успех"), self.tr("Данные сохранены успешно!"))
                 self.allowToRunBot = True
+
+                if self.bot:
+                    self.bot.clean_counters()
+
             self.haveUnsavedRows = False
             save_money_management_data(data)
-            if self.bot:
-                self.bot.clean_counters()
+
+
         except Exception:
             logging.exception("Exception occurred")
             time.sleep(10)
@@ -2323,8 +2329,6 @@ class MainWindow(QMainWindow):
             combo = self.manage_table.cellWidget(self.manage_table.rowCount() - 1, MM_TABLE_FIELDS["LOSS"])
             combo.setText("0")
         # Сохраняем данные после изменения
-
-        # self.saveData(nide_notification=True)
 
     def update_mm_table(self, text):
         if not text:
@@ -2357,11 +2361,13 @@ class MainWindow(QMainWindow):
                             widget.setStyleSheet(allowed_cell(self.theme))
         self.selected_mm_mode = int(text)
 
+
 class TransparentText(QLabel):
     def __init__(self, text, parent, theme):
         super().__init__(text, parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # Прозрачный фон
-        self.setStyleSheet(f"color: {transparent_text_color(theme)};")  # Полупрозрачный текст (белый, 150/255 прозрачности)
+        self.setStyleSheet(
+            f"color: {transparent_text_color(theme)};")  # Полупрозрачный текст (белый, 150/255 прозрачности)
         self.setFont(QFont("Arial", 8, QFont.Weight.Bold))
         self.adjustSize()  # Автоматический размер под текст
         self.move(50, 50)  # Позиция текста внутри окна
@@ -2380,7 +2386,6 @@ def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.abspath(relative_path)
-
 
 
 if __name__ == '__main__':

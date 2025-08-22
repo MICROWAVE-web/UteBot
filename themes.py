@@ -102,6 +102,7 @@ dark_theme = """
         border-radius: 5px;
         padding: 5px 8px;
         font-size: 12px;
+        border: 1px solid #2c3457;
     }
     
     #disclaimerWindow {
@@ -189,7 +190,7 @@ dark_theme = """
     
     QDateTimeEdit {
     background-color: rgb(18, 26, 61); /* Светлый фон */
-    color: black; /* Тёмный текст */
+    color: white; /* Тёмный текст */
     border: none;
     border-radius: 5px;
     padding: 8px;
